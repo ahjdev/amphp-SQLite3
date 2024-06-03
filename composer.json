@@ -15,19 +15,20 @@
     ],
     "autoload": {
         "psr-4": {
-            "Amp\\SQlite\\": "src/"
+            "Amp\\SQLite3\\": "src/"
         },
         "files": ["src/functions.php"]
     },
     "autoload-dev": {
         "psr-4": {
-            "Amp\\SQlite\\Test\\": "test"
+            "Amp\\SQLite3\\Test\\": "test"
         }
     },
     "require": {
         "php-64bit"       : ">=8.2.17",
-        "amphp/sql-common": "^2.0",
-        "amphp/parallel"  : "^2.0"
+        "ext-sqlite3"     : "*",
+        "amphp/sql-common": "^2",
+        "amphp/parallel"  : "^2",
     },
     "require-dev": {
         "amphp/php-cs-fixer-config": "^2.0"
