@@ -2,55 +2,84 @@
 
 namespace Amp\SQLite3\Internal;
 
-use Amp\ByteStream\ResourceStream;
-use Amp\DeferredFuture;
+use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerStatement;
+use Throwable;
 use Amp\Future;
-use Amp\Mysql\MysqlColumnDefinition;
-use Amp\Mysql\MysqlConfig;
-use Amp\Mysql\MysqlDataType;
-use Amp\Mysql\MysqlResult;
-use Amp\Parser\Parser;
-use Amp\Socket\Socket;
-use Amp\Sql\SqlConnectionException;
-use Amp\Sql\SqlQueryError;
+use Amp\Cancellation;
+use Revolt\EventLoop;
+use Amp\DeferredFuture;
+use Amp\SQLite3\SQLite3Config;
+use Amp\Parallel\Context\Context;
 use Amp\Sql\SqlTransientResource;
+use Amp\SQLite3\SQLite3Exception;
+use Amp\Parallel\Context\StatusError;
+use Amp\SQLite3\SQLite3ConnectionException;
+use Amp\SQLite3\Internal\SQLite3CommandResult;
+use Amp\SQLite3\Internal\SQLite3ConnectionResult;
+use function Amp\Parallel\Context\contextFactory;
+use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command\Query;
+use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command\Prepare;
+use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command\StatementOperation;
+use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerResult;
+use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerCommandResult;
 
 /**
  * @internal
  */
 final class ConnectionProcessor implements SqlTransientResource
 {
-    private MysqlConfig $config;
-
     /** @var \SplQueue<DeferredFuture> */
     private readonly \SplQueue $deferreds;
 
     /** @var \SplQueue<\Closure():void> */
     private readonly \SplQueue $onReady;
 
-    private ?MysqlResultProxy $result = null;
+    private readonly DeferredFuture $onClose;
+
+    private Context $context;
 
     private int $lastUsedAt;
 
-    public function __construct(MysqlConfig $config)
+    public function __construct(private SQLite3Config $config, ?Cancellation $cancellation = null)
     {
-        $this->config = $config;
+        $this->context = contextFactory()->start(__DIR__ . '/SQLite3Worker.php', $cancellation);
+        $this->context->send($config);
+        EventLoop::queue($this->listen(...));
         $this->lastUsedAt = \time();
-        $this->deferreds = new \SplQueue();
-        $this->onReady = new \SplQueue();
+        $this->deferreds  = new \SplQueue();
+        $this->onReady    = new \SplQueue();
+        $this->onClose    = new DeferredFuture();
+    }
+
+    public function close(): void
+    {
+        if ($this->onClose->isComplete()) {
+            return;
+        }
+        try {
+            if (!$this->context->isClosed()) {
+                return;
+            }
+            $this->context->close();
+        } catch (StatusError $e) {
+            throw new SQLite3ConnectionException($e->getMessage(), $e->getCode(), $e);
+        }
+        $this->onClose->complete();
     }
 
     public function isClosed(): bool
     {
+        return $this->context->isClosed();
     }
 
     public function onClose(\Closure $onClose): void
     {
+        $this->onClose->getFuture()->finally($onClose);
     }
 
     private function enqueueDeferred(DeferredFuture $deferred): void
     {
-        \assert(!$this->socket->isClosed(), "The connection has been closed");
+        \assert(!$this->context->isClosed(), "The connection has been closed");
         $this->deferreds->push($deferred);
     }
 
@@ -60,14 +89,34 @@ final class ConnectionProcessor implements SqlTransientResource
         return $this->deferreds->shift();
     }
 
+    private function listen(): void
+    {
+        while($data = $this->context->receive())
+        {
+            if ($data instanceof Throwable) {
+                $this->dequeueDeferred()->error($data);
+                $this->ready();
+                continue;
+            }
+            $data = match (true) {
+                is_bool($data), is_string($data) => $data,
+                $data instanceof SQLite3WorkerResult        => new SQLite3ConnectionResult($data),
+                $data instanceof SQLite3WorkerCommandResult => new SQLite3CommandResult($data),
+                $data instanceof SQLite3WorkerStatement     => new SQLite3ConnectionStatement($this, $data),
+                default => new SQLite3Exception("Invalid data received: " . $data),
+            };
+            $this->dequeueDeferred()->complete($data);
+            $this->ready();
+        }
+        throw new SQLite3Exception("The connection has been closed");
+    }
+
     /**
      * @param \Closure():void $callback
      */
     private function appendTask(\Closure $callback): void
     {
-        if ($this->packetCallback
-            || $this->parseCallback
-            || !$this->onReady->isEmpty()
+        if (!$this->onReady->isEmpty()
             || !$this->deferreds->isEmpty()
         ) {
             $this->onReady->push($callback);
@@ -76,7 +125,7 @@ final class ConnectionProcessor implements SqlTransientResource
         }
     }
 
-    public function getConfig(): MysqlConfig
+    public function getConfig(): SQLite3Config
     {
         return $this->config;
     }
@@ -86,6 +135,18 @@ final class ConnectionProcessor implements SqlTransientResource
         return $this->lastUsedAt;
     }
 
+    private function ready(): void
+    {
+        if (!$this->deferreds->isEmpty()) {
+            return;
+        }
+
+        if (!$this->onReady->isEmpty()) {
+            $this->onReady->shift()();
+            return;
+        }
+    }
+
     protected function startCommand(\Closure $callback): Future
     {
         if ($this->isClosed()) {
@@ -93,228 +154,66 @@ final class ConnectionProcessor implements SqlTransientResource
         }
 
         $deferred = new DeferredFuture;
-        $this->appendTask(function () use ($callback, $deferred) {
+        $this->appendTask(function () use ($callback, $deferred): void {
             $this->enqueueDeferred($deferred);
             $callback();
         });
         return $deferred->getFuture();
     }
 
-    /**
-     * @return Future<MysqlResult>
-     */
     public function query(string $query): Future
     {
         return $this->startCommand(function () use ($query): void {
-            $this->query = $query;
-            $this->parseCallback = $this->handleQuery(...);
-            $this->write("\x03$query");
+            $this->context->send(new Query($query));
         });
     }
 
-    /**
-     * @return Future<MysqlConnectionStatement>
-     */
     public function prepare(string $query): Future
     {
         return $this->startCommand(function () use ($query): void {
-            $this->query = $query;
-            $this->parseCallback = $this->handlePrepare(...);
-            $this->write("\x16$query");
+            $this->context->send(new Prepare($query));
         });
     }
 
-    public function bindParam(int $stmtId, int $paramId, string $data): void
+    public function bindParam(int $stmtId, int|string $param, string $data): void
     {
-        $this->appendTask(function () use ($payload): void {
-            $this->write(\implode($payload));
-        });
-    }
-
-    /**
-     * @param list<MysqlColumnDefinition> $params
-     * @param array<int, string> $prebound
-     * @param array<int, mixed> $data
-     */
-    public function execute(int $stmtId, string $query, array $params, array $prebound, array $data = []): Future
-    {
-        $deferred = new DeferredFuture;
-        $this->appendTask(function () use ($stmtId, $query, $params, $prebound, $data, $deferred): void {
-            $this->enqueueDeferred($deferred);
-            $this->write(\implode($payload));
-            // apparently LOAD DATA LOCAL INFILE requests are not supported via prepared statements
-            $this->packetCallback = $this->handleExecute(...);
-        });
-        return $deferred->getFuture(); // do not use $this->startCommand(), that might unexpectedly reset the seqId!
-    }
-
-    public function closeStmt(int $stmtId): void
-    {
-        $payload = "\x19" . MysqlDataType::encodeInt32($stmtId);
-        $this->appendTask(function () use ($payload): void {
-            if ($this->connectionState === ConnectionState::Ready) {
-                $this->write($payload);
-            }
+        $this->appendTask(function () use ($stmtId, $param, $data): void {
+            $this->context->send(new StatementOperation($stmtId, 'bindValue', [$param => $data]));
             $this->ready();
         });
     }
 
-    /** @see 14.7.8 COM_STMT_RESET */
+    public function executeStmt(int $stmtId, array $params): Future
+    {
+        return $this->startCommand(function () use ($stmtId, $params): void {
+            $this->context->send(new StatementOperation($stmtId, 'execute', $params));
+        });
+    }
+
     public function resetStmt(int $stmtId): Future
     {
-        $deferred = new DeferredFuture;
-        $this->appendTask(function () use ($payload, $deferred): void {
-            $this->resetIds();
-            $this->enqueueDeferred($deferred);
-            $this->write($payload);
-        });
-        return $deferred->getFuture();
-    }
-
-    /** @see 14.8.4 COM_STMT_FETCH */
-    public function fetchStmt(int $stmtId): Future
-    {
-        $deferred = new DeferredFuture;
-        $this->appendTask(function () use ($payload, $deferred): void {
-            $this->resetIds();
-            $this->enqueueDeferred($deferred);
-            $this->write($payload);
-        });
-        return $deferred->getFuture();
-    }
-
-    /** @see 14.1.3.2 ERR-Packet */
-    private function handleError(string $packet): void
-    {
-        if ($connecting) {
-            // connection failure
-            $this->free(new SqlConnectionException(\sprintf(
-                'Could not connect to %s: %s',
-                $this->config->getConnectionString(),
-                $this->metadata->errorMsg,
-            )));
-            return;
-        }
-
-        if ($this->result === null && $this->deferreds->isEmpty()) {
-            // connection killed without pending query or active result
-            $this->free(new SqlConnectionException('Connection closed after receiving an unexpected error packet'));
-            return;
-        }
-
-        $deferred = $this->result ?? $this->dequeueDeferred();
-
-        // normal error
-        $exception = new SqlQueryError(\sprintf(
-            'MySQL error (%d): %s %s',
-            $this->metadata->errorCode,
-            $this->metadata->errorState ?? 'Unknown state',
-            $this->metadata->errorMsg,
-        ), $this->query ?? '');
-
-        $this->result = null;
-        $this->query = null;
-        $this->named = [];
-
-        $deferred->error($exception);
-    }
-
-    private function handleOk(string $packet): void
-    {
-        $this->parseOk($packet);
-        $this->dequeueDeferred()->complete(
-            new MysqlCommandResult($this->metadata->affectedRows, $this->metadata->insertId),
-        );
-    }
-
-    private function handleQuery(string $packet): void
-    {
-        switch (\ord($packet)) {
-            case self::OK_PACKET:
-                $this->parseOk($packet);
-
-                if ($this->metadata->statusFlags & self::SERVER_MORE_RESULTS_EXISTS) {
-                    $this->result = new MysqlResultProxy(
-                        affectedRows: $this->metadata->affectedRows,
-                        insertId: $this->metadata->insertId
-                    );
-                    $this->result->markDefinitionsFetched();
-                    $this->dequeueDeferred()->complete(new MysqlConnectionResult($this->result));
-                    $this->successfulResultFetch();
-                } else {
-                    $this->parseCallback = null;
-                    $this->dequeueDeferred()->complete(new MysqlCommandResult(
-                        $this->metadata->affectedRows,
-                        $this->metadata->insertId
-                    ));
-                    $this->ready();
-                }
-                return;
-            case self::LOCAL_INFILE_REQUEST:
-                if ($this->config->isLocalInfileEnabled()) {
-                    $this->handleLocalInfileRequest($packet);
-                } else {
-                    $this->dequeueDeferred()->error(new SqlConnectionException("Unexpected LOCAL_INFILE_REQUEST packet"));
-                }
-                return;
-            case self::ERR_PACKET:
-                $this->handleError($packet);
-                return;
-        }
-
-        $this->result = new MysqlResultProxy(MysqlDataType::decodeUnsigned($packet));
-        $this->dequeueDeferred()->complete(new MysqlConnectionResult($this->result));
-    }
-
-    /** @see 14.7.1 Binary Protocol Resultset */
-    private function handleExecute(string $packet): void
-    {
-        $this->result = new MysqlResultProxy(\ord($packet));
-        $this->dequeueDeferred()->complete(new MysqlConnectionResult($this->result));
-    }
-
-    /** @see 14.7.4.1 COM_STMT_PREPARE Response */
-    private function handlePrepare(string $packet): void
-    {
-        switch (\ord($packet)) {
-            case self::OK_PACKET:
-                break;
-            case self::ERR_PACKET:
-                $this->handleError($packet);
-                return;
-            default:
-                throw new SqlConnectionException("Unexpected value for first byte of COM_STMT_PREPARE Response");
-        }
-
-        $offset = 1;
-
-        $stmtId = MysqlDataType::decodeUnsigned32($packet, $offset);
-        $columns = MysqlDataType::decodeUnsigned16($packet, $offset);
-        $params = MysqlDataType::decodeUnsigned16($packet, $offset);
-
-        $offset += 1; // filler
-
-        $this->metadata->warnings = MysqlDataType::decodeUnsigned16($packet, $offset);
-
-        $this->result = new MysqlResultProxy($columns, $params);
-        $this->refcount++;
-        \assert($this->query !== null, 'Invalid value for connection query');
-        $this->dequeueDeferred()->complete(new MysqlConnectionStatement($this, $this->query, $stmtId, $this->named, $this->result));
-        $this->named = [];
-        if ($params) {
-            $this->parseCallback = $this->prepareParams(...);
-        } else {
-            $this->prepareParams($packet);
-        }
-    }
-
-    public function sendClose(): Future
-    {
-        return $this->startCommand(function (): void {
+        return $this->startCommand(function () use ($stmtId): void {
+            $this->context->send(new StatementOperation($stmtId, 'reset'));
         });
     }
 
-    public function close(): void
+    public function getQueryStmt(int $stmtId): Future
     {
+        return $this->startCommand(function () use ($stmtId): void {
+            $this->context->send(new StatementOperation($stmtId, 'getSql'));
+        });
+    }
+
+    public function closeStmt(int $stmtId): void
+    {
+        $this->appendTask(function () use ($stmtId): void {
+            $this->context->send(new StatementOperation($stmtId, 'close'));
+            $this->ready();
+        });
+    }
+
+    public function __destruct()
+    {
+        $this->close();
     }
 }

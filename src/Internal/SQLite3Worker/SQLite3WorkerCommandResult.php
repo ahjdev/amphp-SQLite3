@@ -12,30 +12,30 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQLite3\Internal\SQLite3Worker\SQLite3Response;
+namespace Amp\SQLite3\Internal\SQLite3Worker;
 
 use Amp\SQLite3\SQLite3Result;
 
-final class SQLite3WorkerResult implements SQLite3Result
+/**
+ * @template TFieldValue
+ * @template TResult of SQLite3Result
+ * @implements SQLite3Result<TFieldValue>
+ */
+final class SQLite3WorkerCommandResult implements SQLite3Result, \IteratorAggregate
 {
-    private int $columnCount;
-
-    private array $result;
-
-    public function __construct(\SQLite3Result $result, public int $affectedRows, public int $lastInsertId)
+    public function __construct(private int $affectedRows, private int $lastInsertId)
     {
-        $this->columnCount = $result->numColumns();
-        while ($array = $result->fetchArray(SQLITE3_ASSOC)) {
-            $this->result[] = $array;
-        }
     }
 
-    public function getIterator(): \Generator
+    final public function getIterator(): \EmptyIterator
     {
-        return yield from $this->result;
+        return new \EmptyIterator;
     }
 
-    public function fetchRow(): ?array
+    /**
+     * @return null Always returns null for command results.
+     */
+    final public function fetchRow(): ?array
     {
         return null;
     }
@@ -45,17 +45,26 @@ final class SQLite3WorkerResult implements SQLite3Result
         return null;
     }
 
-    public function getRowCount(): int
+    /**
+     * @return int Returns the number of rows affected by the command.
+     */
+    final public function getRowCount(): int
     {
         return $this->affectedRows;
     }
 
-    public function getColumnCount(): ?int
+    /**
+     * @return null Always returns null for command results.
+     */
+    final public function getColumnCount(): ?int
     {
-        return $this->columnCount;
+        return null;
     }
 
-    public function getLastInsertId(): ?int
+    /**
+     * @return int Insert ID of the last auto increment row or null if not applicable to the query.
+     */
+    public function getLastInsertId(): int
     {
         return $this->lastInsertId;
     }

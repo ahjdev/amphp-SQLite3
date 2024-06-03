@@ -12,30 +12,40 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command;
+namespace Amp\SQLite3\Internal\SQLite3Worker;
 
-use Amp\SQLite3\Internal\SQLite3Client;
-use Amp\SQLite3\Internal\SQLite3Command;
+use SQLite3Stmt;
 
-final class StatementClose implements SQLite3Command
+final class StatementQueue
 {
-    public function __construct(
-        private int $statementId
-    ) {
+    /** @var list<SQLite3Stmt> */
+    public array $cache = [];
+
+    public function __construct()
+    {
     }
 
-    public function execute(SQLite3Client $sqlite): mixed
+    public function get(int $key): ?SQLite3Stmt
     {
-        $statement = $sqlite->getStatement($this->statementId);
-
-        if (!$statement) {
-            return new FailureExceptionResponse("could not find statement {$this->statementId}");
+        if (!isset($this->cache[$key])) {
+            return null;
         }
+        return $this->cache[$key];
+    }
 
-        $statement->close();
+    public function set(SQLite3Stmt $value): int
+    {
+        $key = \spl_object_id($value);
+        unset($this->cache[$key]);
+        $this->cache[$key] = $value;
+        return $key;
+    }
 
-        $sqlite->removeStatement($this->statementId);
-
-        return new SuccessResponse();
+    public function delete(int $key): bool
+    {
+        $exists = isset($this->cache[$key]);
+        $exists && $this->cache[$key]->close();
+        unset($this->cache[$key]);
+        return $exists;
     }
 }

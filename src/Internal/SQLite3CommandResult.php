@@ -17,6 +17,7 @@ namespace Amp\SQLite3\Internal;
 use Amp\Future;
 use Amp\SQLite3\SQLite3Result;
 use Amp\Sql\Common\SqlCommandResult;
+use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerCommandResult;
 
 /**
  * @template TFieldValue
@@ -24,16 +25,16 @@ use Amp\Sql\Common\SqlCommandResult;
  * @implements SQLite3Result<TFieldValue>
  * @implements \IteratorAggregate<int, never>
  */
-final class SQLite3CommandResult extends SqlCommandResult implements \IteratorAggregate
+final class SQLite3CommandResult extends SqlCommandResult implements SQLite3Result, \IteratorAggregate
 {
     private ?int $lastInsertId;
 
-    public function __construct(int $affectedRows, int $lastInsertId)
+    public function __construct(SQLite3WorkerCommandResult $result)
     {
         /** @var Future<SQLite3Result|null> $future Explicit declaration for Psalm. */
         $future = Future::complete();
-        parent::__construct($affectedRows, $future);
-        $this->lastInsertId = $lastInsertId ?: null; // Convert 0 to null
+        parent::__construct($result->getRowCount(), $future);
+        $this->lastInsertId = $result->getLastInsertId() ?: null; // Convert 0 to null
     }
 
     /**

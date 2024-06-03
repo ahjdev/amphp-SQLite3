@@ -15,15 +15,12 @@
 namespace Amp\SQLite3;
 
 use Amp\DeferredFuture;
-use Amp\Sql\SqlException;
-use Amp\Sql\SqlTransaction;
-
 use Amp\Parallel\Context\Context;
-use Amp\Sql\SqlTransactionIsolation;
 use Amp\Parallel\Context\StatusError;
-use Amp\SQlite\Internal\SqliteCommand\Query;
-use Amp\SQlite\Internal\SqliteCommand\Execute;
-use Amp\SQlite\Internal\SqliteCommand\Prepare;
+use Amp\Sql\SqlTransactionIsolation;
+use Amp\SQLite3\Internal\SqliteCommand\Execute;
+use Amp\SQLite3\Internal\SqliteCommand\Prepare;
+use Amp\SQLite3\Internal\SqliteCommand\Query;
 use function Amp\Parallel\Context\contextFactory;
 
 /**
@@ -40,7 +37,8 @@ final class SQLite3ConnectionPool implements SQLite3Connection
     private Context $context;
     private readonly DeferredFuture $onClose;
 
-    public function __construct(private readonly SQLite3Config $config)
+    // TODO unstable (should complete)
+    private function __construct(private readonly SQLite3Config $config)
     {
         $this->context = contextFactory()->start(__DIR__ . '/Internal/Worker.php');
         $this->context->send($config);
@@ -97,7 +95,7 @@ final class SQLite3ConnectionPool implements SQLite3Connection
         } catch (StatusError $e) {
             throw new SQLite3ConnectionException($e->getMessage(), $e->getCode(), $e);
         }
-    
+
         $this->onClose->complete();
     }
 
@@ -126,7 +124,7 @@ final class SQLite3ConnectionPool implements SQLite3Connection
      *
      * @return TStatement
      *
-     * @throws SqlException
+     * @throws SQLite3Exception
      */
     private function prepareStatement(string $sql): SQLite3Statement
     {
@@ -158,8 +156,8 @@ final class SQLite3ConnectionPool implements SQLite3Connection
     public function execute(string $sql, array $params = []): SQLite3Result
     {
         try {
-        $command = new Execute($sql, $params);
-        $response = $this->context->send($command);
+            $command = new Execute($sql, $params);
+            $response = $this->context->send($command);
         } catch (StatusError $e) {
             throw new SQLite3ConnectionException($e->getMessage(), $e->getCode(), $e);
         }

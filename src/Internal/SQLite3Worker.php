@@ -12,7 +12,7 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQlite\Internal;
+namespace Amp\SQLite3\Internal;
 
 use Amp\SQLite3\Internal\SQLite3Client;
 use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command;
@@ -20,7 +20,7 @@ use Amp\SQLite3\SQLite3Config;
 use Amp\SQLite3\SQLite3Exception;
 use Amp\Sync\Channel;
 
-return function (Channel $channel): mixed {
+return function (Channel $channel) {
     $config = $channel->receive();
     \assert($config instanceof SQLite3Config);
     try {

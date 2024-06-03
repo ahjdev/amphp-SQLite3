@@ -12,33 +12,30 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQLite3\Internal\SQLite3Worker\SQLite3Response;
+namespace Amp\SQLite3\Internal\SQLite3Worker;
 
 use Amp\SQLite3\SQLite3Result;
 
-/**
- * @template TFieldValue
- * @template TResult of SQLite3Result
- * @implements SQLite3Result<TFieldValue>
- */
-final class SQLite3WorkerCommandResult implements SQLite3Result
+final class SQLite3WorkerResult implements SQLite3Result, \IteratorAggregate
 {
-    private ?int $lastInsertId;
+    private int $columnCount;
 
-    public function __construct(private int $affectedRows, int $lastInsertId)
+    private array $result = [];
+
+    public function __construct(\SQLite3Result $result, private int $affectedRows, private int $lastInsertId)
     {
-        $this->lastInsertId = $lastInsertId ?: null;
+        $this->columnCount = $result->numColumns();
+        while ($array = $result->fetchArray(SQLITE3_ASSOC)) {
+            $this->result[] = $array;
+        }
     }
 
-    final public function getIterator(): \EmptyIterator
+    public function getIterator(): \Generator
     {
-        return new \EmptyIterator;
+        return yield from $this->result;
     }
 
-    /**
-     * @return null Always returns null for command results.
-     */
-    final public function fetchRow(): ?array
+    public function fetchRow(): ?array
     {
         return null;
     }
@@ -48,25 +45,16 @@ final class SQLite3WorkerCommandResult implements SQLite3Result
         return null;
     }
 
-    /**
-     * @return int Returns the number of rows affected by the command.
-     */
-    final public function getRowCount(): int
+    public function getRowCount(): int
     {
         return $this->affectedRows;
     }
 
-    /**
-     * @return null Always returns null for command results.
-     */
-    final public function getColumnCount(): ?int
+    public function getColumnCount(): ?int
     {
-        return null;
+        return $this->columnCount;
     }
 
-    /**
-     * @return int|null Insert ID of the last auto increment row or null if not applicable to the query.
-     */
     public function getLastInsertId(): ?int
     {
         return $this->lastInsertId;

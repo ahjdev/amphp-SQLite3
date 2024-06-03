@@ -16,9 +16,10 @@ namespace Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command;
 
 use Amp\SQLite3\Internal\SQLite3Client;
 use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command;
+use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerStatement;
 use Amp\SQLite3\SQLite3QueryError;
 
-final class Prepare implements SQLite3Command
+final class Prepare extends SQLite3Command
 {
     public function __construct(private string $query)
     {
@@ -27,13 +28,11 @@ final class Prepare implements SQLite3Command
     public function execute(SQLite3Client $client): mixed
     {
         $statement = $client->getSQLite3()->prepare($this->query);
-
         if (!$statement) {
             return $client->getLastError(SQLite3QueryError::class);
         }
-
-        $statementId = $sqlite->addStatement($statement);
-
-        return new StatementResponse($statementId, $this->query);
+        $id = $client->getStatements()->set($statement);
+        $totalParamCount = $statement->paramCount();
+        return new SQLite3WorkerStatement($id, $totalParamCount);
     }
 }

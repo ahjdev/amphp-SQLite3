@@ -17,7 +17,7 @@ namespace Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command;
 use Amp\SQLite3\Internal\SQLite3Client;
 use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command;
 
-final class Close implements SQLite3Command
+final class Close extends SQLite3Command
 {
     public function execute(SQLite3Client $client): mixed
     {

@@ -18,17 +18,24 @@ use Amp\SQLite3\SQLite3Exception;
 use Amp\SQLite3\Internal\SQLite3Client;
 use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command;
 
-final class Query extends SQLite3Command
+final class StatementOperation extends SQLite3Command
 {
-    public function __construct(private string $query)
+    public function __construct(private int $id, private string $operation, private array|bool $args = [])
     {
     }
 
     public function execute(SQLite3Client $client): mixed
     {
-        $result = $client->getSQLite3()->query($this->query);
-        return $result
-            ? $this->createResult($client, $result)
-            : $client->getLastError(SQLite3Exception::class);
+        if ($state = $client->getStatements()->get($this->id)) {
+            return match ($this->operation) {
+                'reset'     => $state->reset() ?: $client->getLastError(),
+                'getSql'    => $state->getSQL() ?: $client->getLastError(),
+                'close'     => $client->getStatements()->delete($this->id),
+                'bindValue' => $this->bindValues($state, $this->args),
+                'execute'   => $this->bindExecute($client, $state, $this->args),
+                default => new SQLite3Exception("Invalid SQLite3 statement operation {$this->operation}")
+            };
+        }
+        return new SQLite3Exception("Could not find statement {$this->id}");
     }
 }

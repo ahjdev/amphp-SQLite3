@@ -14,21 +14,22 @@
 
 namespace Amp\SQLite3\Internal;
 
+use Amp\Cache\LocalCache;
+use Amp\SQLite3\Internal\SQLite3Worker\StatementQueue;
+use Amp\SQLite3\SQLite3Config;
+use Amp\SQLite3\SQLite3Exception;
 use SQLite3;
 use SQLite3Stmt;
-use Amp\Cache\LocalCache;
-use Amp\SQLite3\SQLite3Config;
-use Amp\SQLite3\SQLite3Statement;
 
 final class SQLite3Client extends SQLite3
 {
-    private LocalCache $statementCache;
-
+    private StatementQueue $statement;
     private SQLite3 $SQLite3;
 
     public function __construct(SQLite3Config $request)
     {
-        $this->SQLite3 = new SQLite3($request->getFilename(), $request->getFlags(), $request->getEncryptionKey());
+        $this->SQLite3   = new SQLite3($request->getFilename(), $request->getFlags(), $request->getEncryptionKey());
+        $this->statement = new StatementQueue;
     }
 
     public function getSQLite3(): SQLite3
@@ -36,20 +37,27 @@ final class SQLite3Client extends SQLite3
         return $this->SQLite3;
     }
 
-    public function addStatement(SQLite3Stmt $statement): int
+    public function getLastError(string $class = SQLite3Exception::class)
     {
-        $id = \spl_object_id($statement);
-        $this->statementCache->set("$id", $statement);
-        return $id;
+        $class = is_subclass_of($class, \Exception::class) ? $class : SQLite3Exception::class;
+        return new $class(
+            $this->SQLite3->lastErrorMsg(),
+            $this->SQLite3->lastErrorCode(),
+        );
     }
 
-    public function removeStatement(int $statementId): void
+    public function getLastInsertId(): int
     {
-        $this->statementCache->delete("$statementId");
+        return $this->SQLite3->lastInsertRowID();
     }
 
-    public function getStatement(int $statementId): ?SQLite3Statement
+    public function getAffectedRows(): int
     {
-        return $this->statementCache->get("$statementId");
+        return $this->SQLite3->changes();
+    }
+
+    public function getStatements(): StatementQueue
+    {
+        return $this->statement;
     }
 }

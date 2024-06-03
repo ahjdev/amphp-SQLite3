@@ -3,10 +3,10 @@
 namespace Amp\SQLite3\Internal;
 
 use Amp\Future;
-use Amp\SQLite3\SQLite3Result;
 use Revolt\EventLoop;
-use SQLite3Result as SqliteResult;
 use function Amp\async;
+use Amp\SQLite3\SQLite3Result;
+use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerResult;
 
 /**
  * @internal
@@ -15,24 +15,15 @@ use function Amp\async;
  */
 final class SQLite3ConnectionResult implements SQLite3Result, \IteratorAggregate
 {
-    private readonly \Generator $generator;
+    private readonly SQLite3WorkerResult $result;
 
-    private array $result;
+    private readonly \Generator $generator;
 
     private ?Future $nextResult = null;
 
-    public function __construct(
-        SqliteResult $SQLite3Result,
-        private readonly int $affectedRows,
-        private readonly int $columnCount,
-        private readonly int $insertId
-    ) {
-        $before = null;
-        while ($result = $SQLite3Result->fetchArray(SQLITE3_ASSOC)) {
-            $this->result[] = $result = new SQLite3ResultProxy($this, $result);
-            $before?->withNextResult($result);
-            $before = $result;
-        }
+    public function __construct(SQLite3WorkerResult $result)
+    {
+        $this->result = $result;
         $this->generator = $this->iterate();
     }
 
@@ -91,16 +82,16 @@ final class SQLite3ConnectionResult implements SQLite3Result, \IteratorAggregate
 
     public function getRowCount(): ?int
     {
-        return $this->affectedRows;
+        return $this->result->getRowCount();
     }
 
     public function getColumnCount(): int
     {
-        return $this->columnCount;
+        return $this->result->getColumnCount();
     }
 
     public function getLastInsertId(): ?int
     {
-        return $this->insertId;
+        return $this->result->getLastInsertId();
     }
 }

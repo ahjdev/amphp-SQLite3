@@ -14,9 +14,40 @@
 
 namespace Amp\SQLite3\Internal\SQLite3Worker;
 
+use SQLite3Stmt;
+use Amp\SQLite3\SQLite3Result;
 use Amp\SQLite3\Internal\SQLite3Client;
+use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerResult;
+use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerCommandResult;
 
-interface SQLite3Command
+abstract class SQLite3Command
 {
-    public function execute(SQLite3Client $sqlite): mixed;
+    abstract public function execute(SQLite3Client $client): mixed;
+
+    public function bindValues(SQLite3Stmt $statement, array $bindings): void
+    {
+        foreach ($bindings as $key => $value) {
+            if (\is_string($value) && !\ctype_print($value)) {
+                $a = $statement->bindValue($key, $value, SQLITE3_BLOB);
+            } else {
+                $a = $statement->bindValue($key, $value);
+            }
+        }
+    }
+
+    public function bindExecute(SQLite3Client $client, SQLite3Stmt $statement, array $bindings): SQLite3Result|false
+    {
+        $this->bindValues($statement, $bindings);
+        return $this->createResult($client, $statement->execute());
+    }
+
+    public function createResult(SQLite3Client $client, \SQLite3Result $result): SQLite3Result
+    {
+        [$affectedRows, $lastInsertId] = [$client->getAffectedRows(), $client->getLastInsertId()];
+
+        if ($result->numColumns() === 0) {
+            return new SQLite3WorkerCommandResult($affectedRows, $lastInsertId);
+        }
+        return new SQLite3WorkerResult($result, $affectedRows, $lastInsertId);
+    }
 }
