@@ -12,13 +12,10 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQlite;
+namespace Amp\SQLite3;
 
-use Amp\Sql\SqlStatement;
+use Amp\Sql\SqlException;
 
-/**
- * @extends SqlStatement<SqliteResult>
- */
-interface SqliteStatement extends SqlStatement
+final class SQLite3Exception extends SqlException
 {
 }

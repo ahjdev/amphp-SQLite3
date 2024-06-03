@@ -12,10 +12,8 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQlite;
+namespace Amp\SQLite3;
 
-use Amp\Sql\SqlQueryError;
-
-final class SqliteQueryError extends SqlQueryError
+interface SQLite3Connection extends SQLite3Link
 {
 }

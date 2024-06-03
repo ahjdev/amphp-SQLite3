@@ -12,10 +12,10 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQlite;
+namespace Amp\SQLite3;
 
-use Amp\Sql\SqlConnectionException;
+use Amp\Sql\SqlTransactionError;
 
-final class SqliteConnectionException extends SqlConnectionException
+final class SQLite3TransactionError extends SqlTransactionError
 {
 }

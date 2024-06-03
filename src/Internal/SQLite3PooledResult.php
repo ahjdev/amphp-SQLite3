@@ -12,21 +12,21 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQlite\Internal;
+namespace Amp\SQLite3\Internal;
 
 use Revolt\EventLoop;
 use Amp\Future;
 use Amp\Sql\SqlResult;
-use Amp\SQlite\SqliteResult;
+use Amp\SQLite3\SQLite3Result;
 use function Amp\async;
 
 /**
  * @template TFieldValue
- * @template TResult of SqliteResult
- * @implements SqliteResult<TFieldValue>
+ * @template TResult of SQLite3Result
+ * @implements SQLite3Result<TFieldValue>
  * @implements \IteratorAggregate<int, array<string, TFieldValue>>
  */
-final class SqlitePooledResult implements SqliteResult, \IteratorAggregate
+final class SQLite3PooledResult implements SQLite3Result, \IteratorAggregate
 {
     /** @var Future<TResult|null>|null */
     private ?Future $next = null;
@@ -38,9 +38,9 @@ final class SqlitePooledResult implements SqliteResult, \IteratorAggregate
      * @param TResult $result Result object created by pooled connection or statement.
      * @param \Closure():void $release Callable to be invoked when the result set is destroyed.
      */
-    public function __construct(private readonly SqliteResult $result, private readonly \Closure $release)
+    public function __construct(private readonly SQLite3Result $result, private readonly \Closure $release)
     {
-        if ($this->result instanceof SqliteCommandResult) {
+        if ($this->result instanceof SQLite3CommandResult) {
             $this->iterator = $this->result->getIterator();
             $this->next = self::fetchNextResult($this->result, $this->release);
             return;
@@ -112,7 +112,7 @@ final class SqlitePooledResult implements SqliteResult, \IteratorAggregate
     /**
      * @return TResult|null
      */
-    public function getNextResult(): ?SqliteResult
+    public function getNextResult(): ?SQLite3Result
     {
         $this->next ??= self::fetchNextResult($this->result, $this->release);
         return $this->next->await();
@@ -124,16 +124,16 @@ final class SqlitePooledResult implements SqliteResult, \IteratorAggregate
     }
 
     /**
-     * @template Tr of SqliteResult
+     * @template Tr of SQLite3Result
      *
      * @param Tr $result
      * @param \Closure():void $release
      *
      * @return Future<Tr|null>
      */
-    private static function fetchNextResult(SqliteResult $result, \Closure $release): Future
+    private static function fetchNextResult(SQLite3Result $result, \Closure $release): Future
     {
-        return async(static function () use ($result, $release): ?SqliteResult {
+        return async(static function () use ($result, $release): ?SQLite3Result {
             /** @var Tr|null $result */
             $result = $result->getNextResult();
 
@@ -154,7 +154,7 @@ final class SqlitePooledResult implements SqliteResult, \IteratorAggregate
      *
      * @return Tr
      */
-    protected static function newInstanceFrom(SqliteResult $result, \Closure $release): self
+    protected static function newInstanceFrom(SQLite3Result $result, \Closure $release): self
     {
         return new self($result, $release);
     }

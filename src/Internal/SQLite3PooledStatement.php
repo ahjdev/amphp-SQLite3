@@ -12,19 +12,20 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQlite\Internal;
+namespace Amp\SQLite3\Internal;
 
+use Amp\SQLite3\SQLite3Exception;
 use Revolt\EventLoop;
-use Amp\SQlite\SqliteResult;
-use Amp\SQlite\SqliteException;
-use Amp\SQlite\SqliteStatement;
+use Amp\SQLite3\SQLite3Result;
+use Amp\SQLite3\SqliteException;
+use Amp\SQLite3\SQLite3Statement;
 
 /**
- * @template TResult of SqliteResult
- * @template TStatement of SqliteStatement<TResult>
- * @implements SqliteStatement<TResult>
+ * @template TResult of SQLite3Result
+ * @template TStatement of SQLite3Statement<TResult>
+ * @implements SQLite3Statement<TResult>
  */
-final class SqlitePooledStatement implements SqliteStatement
+final class SQLite3PooledStatement implements SQLite3Statement
 {
     /** @var null|\Closure():void */
     private ?\Closure $release;
@@ -39,7 +40,7 @@ final class SqlitePooledStatement implements SqliteStatement
      *     wait if the parent resource is busy with another action (e.g., a nested transaction).
      */
     public function __construct(
-        private readonly SqliteStatement $statement,
+        private readonly SQLite3Statement $statement,
         \Closure $release,
         private readonly ?\Closure $awaitBusyResource = null,
     ) {
@@ -59,10 +60,10 @@ final class SqlitePooledStatement implements SqliteStatement
     /**
      * @return TResult
      */
-    public function execute(array $params = []): SqliteResult
+    public function execute(array $params = []): SQLite3Result
     {
         if (!$this->release) {
-            throw new SqliteException('The statement has been closed');
+            throw new SQLite3Exception('The statement has been closed');
         }
 
         $this->awaitBusyResource && ($this->awaitBusyResource)();
@@ -116,8 +117,8 @@ final class SqlitePooledStatement implements SqliteStatement
      *
      * @return TResult
      */
-    private function createResult(SqliteResult $result, \Closure $release): SqliteResult
+    private function createResult(SQLite3Result $result, \Closure $release): SQLite3Result
     {
-        return new SqlitePooledResult($result, $release);
+        return new SQLite3PooledResult($result, $release);
     }
 }

@@ -12,7 +12,7 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQlite;
+namespace Amp\SQLite3;
 
 use Amp\Sql\SqlResult;
 
@@ -22,7 +22,7 @@ use Amp\Sql\SqlResult;
  * @psalm-type TRowType = array<string, TFieldType>
  * @extends SqlResult<TFieldType>
  */
-interface SqliteResult extends SqlResult
+interface SQLite3Result extends SqlResult
 {
     /**
      * Changes return type to this library's Result type.

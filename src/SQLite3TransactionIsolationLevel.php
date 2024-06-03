@@ -1,10 +1,10 @@
 <?php declare(strict_types=1);
 
-namespace Amp\Sql;
+namespace Amp\SQLite3;
 
 use Amp\Sql\SqlTransactionIsolation;
 
-enum SqliteTransactionIsolationLevel: int implements SqlTransactionIsolation
+enum SQLite3TransactionIsolationLevel: int implements SqlTransactionIsolation
 {
     case Deferred = 0;
     case Immediate = 1;

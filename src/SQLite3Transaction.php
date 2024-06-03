@@ -12,27 +12,16 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQlite;
+namespace Amp\SQLite3;
 
-use Amp\Sql\SqlExecutor;
+use Amp\Sql\SqlTransaction;
+
 
 /**
- * @extends SqlExecutor<SqliteResult, SqliteStatement>
+ * Note that notifications sent during a transaction are not delivered until the transaction has been committed.
+ *
+ * @extends SqlTransaction<SQLite3Result, SQLite3Statement, SQLite3Transaction>
  */
-interface SqliteExecutor extends SqlExecutor
+interface SQLite3Transaction extends SQLite3Link, SqlTransaction
 {
-    /**
-     * @return SqliteResult Result object specific to this library.
-     */
-    public function query(string $sql): SqliteResult;
-
-    /**
-     * @return SqliteStatement Statement object specific to this library.
-     */
-    public function prepare(string $sql): SqliteStatement;
-
-    /**
-     * @return SqliteResult Result object specific to this library.
-     */
-    public function execute(string $sql, array $params = []): SqliteResult;
 }

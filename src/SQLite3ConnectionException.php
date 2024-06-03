@@ -12,16 +12,10 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQlite;
+namespace Amp\SQLite3;
 
-use Amp\Sql\SqlTransaction;
+use Amp\Sql\SqlConnectionException;
 
-
-/**
- * Note that notifications sent during a transaction are not delivered until the transaction has been committed.
- *
- * @extends SqlTransaction<SqliteResult, SqliteStatement, SqliteTransaction>
- */
-interface SqliteTransaction extends SqliteLink, SqlTransaction
+final class SQLite3ConnectionException extends SqlConnectionException
 {
 }

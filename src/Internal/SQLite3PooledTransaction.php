@@ -12,22 +12,22 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQlite\Internal;
+namespace Amp\SQLite3\Internal;
 
 use Revolt\EventLoop;
-use Amp\SQlite\SqliteResult;
-use Amp\SQlite\SqliteStatement;
-use Amp\SQlite\SqliteTransaction;
+use Amp\SQLite3\SQLite3Result;
+use Amp\SQLite3\SQLite3Statement;
+use Amp\SQLite3\SQLite3Transaction;
 use Amp\Sql\SqlTransactionIsolation;
 
 /**
- * @template TResult of SqliteResult
- * @template TStatement of SqliteStatement
- * @template TTransaction of SqliteTransaction
+ * @template TResult of SQLite3Result
+ * @template TStatement of SQLite3Statement
+ * @template TTransaction of SQLite3Transaction
  *
- * @implements SqliteTransaction<TResult, TStatement, TTransaction>
+ * @implements SQLite3Transaction<TResult, TStatement, TTransaction>
  */
-final class SqlitePooledTransaction implements SqliteTransaction
+final class SQLite3PooledTransaction implements SQLite3Transaction
 {
     /** @var \Closure():void */
     private readonly \Closure $release;
@@ -38,7 +38,7 @@ final class SqlitePooledTransaction implements SqliteTransaction
      * @param TTransaction $transaction Transaction object created by pooled connection.
      * @param \Closure():void $release Callable to be invoked when the transaction completes or is destroyed.
      */
-    public function __construct(private readonly SqliteTransaction $transaction, \Closure $release)
+    public function __construct(private readonly SQLite3Transaction $transaction, \Closure $release)
     {
         $refCount = &$this->refCount;
         $this->release = static function () use (&$refCount, $release): void {
@@ -60,9 +60,9 @@ final class SqlitePooledTransaction implements SqliteTransaction
      *
      * @return TTransaction
      */
-    private function createTransaction(SqliteTransaction $transaction, \Closure $release): SqliteTransaction
+    private function createTransaction(SQLite3Transaction $transaction, \Closure $release): SQLite3Transaction
     {
-        return new SqlitePooledTransaction($transaction, $release);
+        return new SQLite3PooledTransaction($transaction, $release);
     }
 
     /**
@@ -74,9 +74,9 @@ final class SqlitePooledTransaction implements SqliteTransaction
      *
      * @return TStatement
      */
-    private function createStatement(SqliteStatement $statement, \Closure $release, ?\Closure $awaitBusyResource = null): SqliteStatement
+    private function createStatement(SQLite3Statement $statement, \Closure $release, ?\Closure $awaitBusyResource = null): SQLite3Statement
     {
-        return new SqlitePooledStatement($statement, $release, $awaitBusyResource);
+        return new SQLite3PooledStatement($statement, $release, $awaitBusyResource);
     }
 
     /**
@@ -88,12 +88,12 @@ final class SqlitePooledTransaction implements SqliteTransaction
      *
      * @return TResult
      */
-    private function createResult(SqliteResult $result, \Closure $release): SqliteResult
+    private function createResult(SQLite3Result $result, \Closure $release): SQLite3Result
     {
-        return new SqlitePooledResult($result, $release);
+        return new SQLite3PooledResult($result, $release);
     }
 
-    public function query(string $sql): SqliteResult
+    public function query(string $sql): SQLite3Result
     {
         ++$this->refCount;
 
@@ -106,7 +106,7 @@ final class SqlitePooledTransaction implements SqliteTransaction
         }
     }
 
-    public function prepare(string $sql): SqliteStatement
+    public function prepare(string $sql): SQLite3Statement
     {
         ++$this->refCount;
 
@@ -119,7 +119,7 @@ final class SqlitePooledTransaction implements SqliteTransaction
         }
     }
 
-    public function execute(string $sql, array $params = []): SqliteResult
+    public function execute(string $sql, array $params = []): SQLite3Result
     {
         ++$this->refCount;
 
@@ -132,7 +132,7 @@ final class SqlitePooledTransaction implements SqliteTransaction
         }
     }
 
-    public function beginTransaction(): SqliteTransaction
+    public function beginTransaction(): SQLite3Transaction
     {
         ++$this->refCount;
 

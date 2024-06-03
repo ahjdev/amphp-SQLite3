@@ -12,17 +12,13 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQlite;
+namespace Amp\SQLite3;
 
-use Amp\Sql\SqlLink;
+use Amp\Sql\SqlStatement;
 
 /**
- * @extends SqlLink<SqliteResult, SqliteStatement, SqliteTransaction>
+ * @extends SqlStatement<SQLite3Result>
  */
-interface SqliteLink extends SqliteExecutor, SqlLink
+interface SQLite3Statement extends SqlStatement
 {
-    /**
-     * @return SqliteTransaction Transaction object specific to this library.
-     */
-    public function beginTransaction(): SqliteTransaction;
 }

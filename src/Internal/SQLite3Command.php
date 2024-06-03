@@ -12,8 +12,9 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQlite;
+namespace Amp\SQLite3\Internal;
 
-interface SqliteConnection extends SqliteLink
+interface SQLite3Command
 {
+    public function execute(SQLite3Client $sqlite): mixed;
 }

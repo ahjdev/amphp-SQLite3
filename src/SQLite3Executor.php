@@ -12,10 +12,27 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQlite;
+namespace Amp\SQLite3;
 
-use Amp\Sql\SqlException;
+use Amp\Sql\SqlExecutor;
 
-final class SqliteException extends SqlException
+/**
+ * @extends SqlExecutor<SQLite3Result, SQLite3Statement>
+ */
+interface SQLite3Executor extends SqlExecutor
 {
+    /**
+     * @return SQLite3Result Result object specific to this library.
+     */
+    public function query(string $sql): SQLite3Result;
+
+    /**
+     * @return SQLite3Statement Statement object specific to this library.
+     */
+    public function prepare(string $sql): SQLite3Statement;
+
+    /**
+     * @return SQLite3Result Result object specific to this library.
+     */
+    public function execute(string $sql, array $params = []): SQLite3Result;
 }

@@ -12,14 +12,14 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQlite;
+namespace Amp\SQLite3;
 
-final class SqliteConfig
+final class SQLite3Config
 {
     public function __construct(private string $filename, private int $flags, private string $encryptionKey)
     {
         if (!extension_loaded('sqlite3')) {
-            throw new SqliteException(__CLASS__ . " requires the sqlite3 extension");
+            throw new SQLite3Exception(__CLASS__ . " requires the sqlite3 extension");
         }
     }
 
