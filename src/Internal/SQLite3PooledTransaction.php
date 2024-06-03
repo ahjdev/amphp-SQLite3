@@ -14,11 +14,11 @@
 
 namespace Amp\SQLite3\Internal;
 
-use Revolt\EventLoop;
+use Amp\Sql\SqlTransactionIsolation;
 use Amp\SQLite3\SQLite3Result;
 use Amp\SQLite3\SQLite3Statement;
 use Amp\SQLite3\SQLite3Transaction;
-use Amp\Sql\SqlTransactionIsolation;
+use Revolt\EventLoop;
 
 /**
  * @template TResult of SQLite3Result

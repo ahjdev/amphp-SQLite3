@@ -14,10 +14,10 @@
 
 namespace Amp\SQLite3\Internal;
 
-use Revolt\EventLoop;
 use Amp\Future;
 use Amp\Sql\SqlResult;
 use Amp\SQLite3\SQLite3Result;
+use Revolt\EventLoop;
 use function Amp\async;
 
 /**

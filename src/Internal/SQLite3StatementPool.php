@@ -16,11 +16,11 @@ namespace Amp\SQLite3\Internal;
 
 use Amp\DeferredFuture;
 use Amp\SQLite3\SQLite3Config;
-use Amp\SQLite3\SQLite3Result;
+use Amp\SQLite3\SQLite3ConnectionPool;
 use Amp\SQLite3\SQLite3Exception;
+use Amp\SQLite3\SQLite3Result;
 use Amp\SQLite3\SQLite3Statement;
 use Amp\SQLite3\SQLite3Transaction;
-use Amp\SQLite3\SQLite3ConnectionPool;
 
 /**
  * @template TConfig of SQLite3Config

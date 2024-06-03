@@ -15,10 +15,9 @@
 namespace Amp\SQLite3\Internal;
 
 use Amp\SQLite3\SQLite3Exception;
-use Revolt\EventLoop;
 use Amp\SQLite3\SQLite3Result;
-use Amp\SQLite3\SqliteException;
 use Amp\SQLite3\SQLite3Statement;
+use Revolt\EventLoop;
 
 /**
  * @template TResult of SQLite3Result

@@ -16,9 +16,9 @@ namespace Amp\SQLite3;
 
 final class SQLite3Config
 {
-    public function __construct(private string $filename, private int $flags, private string $encryptionKey)
+    public function __construct(private string $filename, private int $flags = SQLITE3_OPEN_READWRITE | SQLITE3_OPEN_CREATE, private string $encryptionKey = '')
     {
-        if (!extension_loaded('sqlite3')) {
+        if (!\extension_loaded('sqlite3')) {
             throw new SQLite3Exception(__CLASS__ . " requires the sqlite3 extension");
         }
     }
