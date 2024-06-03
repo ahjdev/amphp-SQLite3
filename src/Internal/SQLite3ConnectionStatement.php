@@ -15,9 +15,9 @@
 namespace Amp\SQLite3\Internal;
 
 use Amp\DeferredFuture;
+use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerStatement;
 use Amp\SQLite3\SQLite3Result;
 use Amp\SQLite3\SQLite3Statement;
-use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerStatement;
 
 final class SQLite3ConnectionStatement implements SQLite3Statement
 {

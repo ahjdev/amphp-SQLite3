@@ -14,12 +14,10 @@
 
 namespace Amp\SQLite3\Internal;
 
-use Amp\Cache\LocalCache;
 use Amp\SQLite3\Internal\SQLite3Worker\StatementQueue;
 use Amp\SQLite3\SQLite3Config;
 use Amp\SQLite3\SQLite3Exception;
 use SQLite3;
-use SQLite3Stmt;
 
 final class SQLite3Client extends SQLite3
 {
@@ -39,7 +37,7 @@ final class SQLite3Client extends SQLite3
 
     public function getLastError(string $class = SQLite3Exception::class)
     {
-        $class = is_subclass_of($class, \Exception::class) ? $class : SQLite3Exception::class;
+        $class = \is_subclass_of($class, \Exception::class) ? $class : SQLite3Exception::class;
         return new $class(
             $this->SQLite3->lastErrorMsg(),
             $this->SQLite3->lastErrorCode(),

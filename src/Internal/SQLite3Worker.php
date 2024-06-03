@@ -14,13 +14,12 @@
 
 namespace Amp\SQLite3\Internal;
 
-use Amp\SQLite3\Internal\SQLite3Client;
 use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command;
 use Amp\SQLite3\SQLite3Config;
 use Amp\SQLite3\SQLite3Exception;
 use Amp\Sync\Channel;
 
-return function (Channel $channel) {
+return function (Channel $channel): void {
     $config = $channel->receive();
     \assert($config instanceof SQLite3Config);
     try {

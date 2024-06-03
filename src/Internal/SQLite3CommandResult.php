@@ -15,9 +15,9 @@
 namespace Amp\SQLite3\Internal;
 
 use Amp\Future;
-use Amp\SQLite3\SQLite3Result;
 use Amp\Sql\Common\SqlCommandResult;
 use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerCommandResult;
+use Amp\SQLite3\SQLite3Result;
 
 /**
  * @template TFieldValue

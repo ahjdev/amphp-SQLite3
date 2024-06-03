@@ -14,11 +14,9 @@
 
 namespace Amp\SQLite3\Internal\SQLite3Worker;
 
-use SQLite3Stmt;
-use Amp\SQLite3\SQLite3Result;
 use Amp\SQLite3\Internal\SQLite3Client;
-use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerResult;
-use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerCommandResult;
+use Amp\SQLite3\SQLite3Result;
+use SQLite3Stmt;
 
 abstract class SQLite3Command
 {

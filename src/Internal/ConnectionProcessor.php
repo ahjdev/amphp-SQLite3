@@ -2,26 +2,24 @@
 
 namespace Amp\SQLite3\Internal;
 
-use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerStatement;
-use Throwable;
-use Amp\Future;
 use Amp\Cancellation;
-use Revolt\EventLoop;
 use Amp\DeferredFuture;
-use Amp\SQLite3\SQLite3Config;
+use Amp\Future;
 use Amp\Parallel\Context\Context;
-use Amp\Sql\SqlTransientResource;
-use Amp\SQLite3\SQLite3Exception;
 use Amp\Parallel\Context\StatusError;
-use Amp\SQLite3\SQLite3ConnectionException;
-use Amp\SQLite3\Internal\SQLite3CommandResult;
-use Amp\SQLite3\Internal\SQLite3ConnectionResult;
-use function Amp\Parallel\Context\contextFactory;
-use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command\Query;
+use Amp\Sql\SqlTransientResource;
 use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command\Prepare;
+use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command\Query;
 use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command\StatementOperation;
-use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerResult;
 use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerCommandResult;
+use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerResult;
+use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerStatement;
+use Amp\SQLite3\SQLite3Config;
+use Amp\SQLite3\SQLite3ConnectionException;
+use Amp\SQLite3\SQLite3Exception;
+use Revolt\EventLoop;
+use Throwable;
+use function Amp\Parallel\Context\contextFactory;
 
 /**
  * @internal
@@ -91,15 +89,14 @@ final class ConnectionProcessor implements SqlTransientResource
 
     private function listen(): void
     {
-        while($data = $this->context->receive())
-        {
+        while($data = $this->context->receive()) {
             if ($data instanceof Throwable) {
                 $this->dequeueDeferred()->error($data);
                 $this->ready();
                 continue;
             }
             $data = match (true) {
-                is_bool($data), is_string($data) => $data,
+                \is_bool($data), \is_string($data) => $data,
                 $data instanceof SQLite3WorkerResult        => new SQLite3ConnectionResult($data),
                 $data instanceof SQLite3WorkerCommandResult => new SQLite3CommandResult($data),
                 $data instanceof SQLite3WorkerStatement     => new SQLite3ConnectionStatement($this, $data),

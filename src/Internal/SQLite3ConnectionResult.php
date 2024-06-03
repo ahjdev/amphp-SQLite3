@@ -3,10 +3,10 @@
 namespace Amp\SQLite3\Internal;
 
 use Amp\Future;
+use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerResult;
+use Amp\SQLite3\SQLite3Result;
 use Revolt\EventLoop;
 use function Amp\async;
-use Amp\SQLite3\SQLite3Result;
-use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerResult;
 
 /**
  * @internal

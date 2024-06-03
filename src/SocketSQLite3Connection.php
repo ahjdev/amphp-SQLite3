@@ -16,8 +16,8 @@ namespace Amp\SQLite3;
 
 use Amp\Cancellation;
 use Amp\DeferredFuture;
-use Amp\Sync\ChannelException;
 use Amp\Sql\SqlTransactionIsolation;
+use Amp\Sync\ChannelException;
 
 final class SocketSQLite3Connection implements SQLite3Connection
 {

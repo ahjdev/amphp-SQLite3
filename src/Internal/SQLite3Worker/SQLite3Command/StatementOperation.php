@@ -14,9 +14,9 @@
 
 namespace Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command;
 
-use Amp\SQLite3\SQLite3Exception;
 use Amp\SQLite3\Internal\SQLite3Client;
 use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command;
+use Amp\SQLite3\SQLite3Exception;
 
 final class StatementOperation extends SQLite3Command
 {
