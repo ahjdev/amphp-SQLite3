@@ -12,7 +12,9 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQLite3\Internal;
+namespace Amp\SQLite3\Internal\SQLite3Worker;
+
+use Amp\SQLite3\Internal\SQLite3Client;
 
 interface SQLite3Command
 {

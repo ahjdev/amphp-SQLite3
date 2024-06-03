@@ -14,23 +14,27 @@
 
 namespace Amp\SQlite\Internal;
 
+use Amp\SQLite3\Internal\SQLite3Client;
+use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command;
+use Amp\SQLite3\SQLite3Config;
+use Amp\SQLite3\SQLite3Exception;
 use Amp\Sync\Channel;
-use Amp\SQlite\SQLite3Config;
 
-return function (Channel $channel): mixed
-{
+return function (Channel $channel): mixed {
     $config = $channel->receive();
     \assert($config instanceof SQLite3Config);
-    $environment = new SqliteClient($config);
-
     try {
-        while (true) {
-            $command = $channel->receive();
-            \assert($command instanceof Command);
-            $response = $command->execute($environment);
-            $channel->send($response);
+        $SQLite3 = new SQLite3Client($config);
+    } catch (\Throwable $e) {
+        $channel->send(new SQLite3Exception("Cannot connect to SQLite3", previous: $e));
+    }
+    while (true) {
+        $command = $channel->receive();
+        \assert($command instanceof SQLite3Command);
+        try {
+            $result = $command->execute($SQLite3);
+        } catch (\Throwable $result) {
         }
-    } catch (CloseConnectionException) {
-        return null;
+        $channel->send($result);
     }
 };

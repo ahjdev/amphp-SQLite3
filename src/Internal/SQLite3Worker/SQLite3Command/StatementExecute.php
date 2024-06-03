@@ -12,15 +12,31 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQLite3\Internal\SqliteCommand;
+namespace Amp\SQlite\Internal\SQLite3Worker\SqliteCommand;
 
-use Amp\SQLite3\Internal\SQLite3Client;
-use Amp\SQLite3\Internal\SqliteCommand;
+use Amp\SQlite\Internal\SqliteClient;
+use Amp\SQlite\Internal\SqliteCommand;
 
-final class Close implements SqliteCommand
+final class Internal_SQLite3Worker_SQLite3Command_StatementExecute implements SqliteCommand
 {
-    public function execute(SQLite3Client $sqlite): mixed
+    public function __construct(
+        private int $statementId,
+        private array $bindings
+    ) {
+    }
+
+    public function execute(SqliteClient $sqlite): mixed
     {
-        return $sqlite->getSQLite3()->close();
+        $statement = $sqlite->getStatement($this->statementId);
+
+        if (!$statement) {
+            return new FailureExceptionResponse("could not find statement {$this->statementId}");
+        }
+
+        $this->addBindings($statement);
+
+        $results = $statement->execute();
+
+        return $this->createQueryResponse($results, $sqlite);
     }
 }

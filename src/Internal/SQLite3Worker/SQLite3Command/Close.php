@@ -12,31 +12,16 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQLite3\Internal\SQLite3Command;
+namespace Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command;
 
-use Amp\SQLite3\SQLite3QueryError;
 use Amp\SQLite3\Internal\SQLite3Client;
-use Amp\SQLite3\Internal\SQLite3Command;
+use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command;
 
-final class StatementClose implements SQLite3Command
+final class Close implements SQLite3Command
 {
-    public function __construct(
-        private int $statementId
-    ) {
-    }
-
-    public function execute(SQLite3Client $sqlite): mixed
+    public function execute(SQLite3Client $client): mixed
     {
-        $statement = $sqlite->getStatement($this->statementId);
-
-        if (!$statement) {
-            return new FailureExceptionResponse("could not find statement {$this->statementId}");
-        }
-
-        $statement->close();
-
-        $sqlite->removeStatement($this->statementId);
-
-        return new SuccessResponse();
+        $client->getSQLite3()->close();
+        return null;
     }
 }

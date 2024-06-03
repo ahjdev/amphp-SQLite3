@@ -12,29 +12,10 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQLite3\Internal\SQLite3Command;
+namespace Amp\SQLite3\Internal\SQLite3Worker\SQLite3Response;
 
-use Amp\SQLite3\SQLite3QueryError;
-use Amp\SQLite3\Internal\SQLite3Client;
-use Amp\SQLite3\Internal\SQLite3Command;
+use Amp\SQLite3\SQLite3Statement;
 
-final class Prepare implements SQLite3Command
+final class SQLite3WorkerStatement implements SQLite3Statement
 {
-    public function __construct(
-        private string $query
-    ) {
-    }
-
-    public function execute(SQLite3Client $sqlite): mixed
-    {
-        $statement = $sqlite->prepare($this->query);
-
-        if (!$statement) {
-            return new SQLite3QueryError($sqlite->lastErrorMsg());
-        }
-
-        $statementId = $sqlite->addStatement($statement);
-
-        return new StatementResponse($statementId, $this->query);
-    }
 }
