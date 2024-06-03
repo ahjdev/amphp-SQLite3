@@ -48,3 +48,8 @@ config.json
 /docker-compose.yml
 /Caddyfile
 /changelog
+
+#tests
+test.php
+test.sqlite3
+test.sqlite
