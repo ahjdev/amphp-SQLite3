@@ -1,6 +1,6 @@
 {
     "name": "ahjdev/sqlite",
-    "description": "Asynchronous MySQL client for PHP based on Amp.",
+    "description": "Asynchronous SQLite3 client for PHP based on Amp.",
     "keywords": [
         "amphp",
         "sqlite",
