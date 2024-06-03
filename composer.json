@@ -28,7 +28,7 @@
         "php-64bit"       : ">=8.2.17",
         "ext-sqlite3"     : "*",
         "amphp/sql-common": "^2",
-        "amphp/parallel"  : "^2",
+        "amphp/parallel"  : "^2"
     },
     "require-dev": {
         "amphp/php-cs-fixer-config": "^2.0"
