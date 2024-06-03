@@ -3,11 +3,9 @@
 namespace Amp\SQLite3\Internal;
 
 use Amp\Future;
-use Revolt\EventLoop;
-use Amp\DeferredFuture;
 use Amp\SQLite3\SQLite3Result;
+use Revolt\EventLoop;
 use SQLite3Result as SqliteResult;
-
 use function Amp\async;
 
 /**
@@ -29,8 +27,11 @@ final class SQLite3ConnectionResult implements SQLite3Result, \IteratorAggregate
         private readonly int $columnCount,
         private readonly int $insertId
     ) {
+        $before = null;
         while ($result = $SQLite3Result->fetchArray(SQLITE3_ASSOC)) {
-            $this->result[] = $result;
+            $this->result[] = $result = new SQLite3ResultProxy($this, $result);
+            $before?->withNextResult($result);
+            $before = $result;
         }
         $this->generator = $this->iterate();
     }

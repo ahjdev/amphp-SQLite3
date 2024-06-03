@@ -19,48 +19,33 @@ use Amp\SQLite3\SQLite3Result;
 
 final class SQLite3ResultProxy implements SqlResult, \IteratorAggregate
 {
-    private SQLite3Result $result;
-
     public function __construct(
-        array $result,
-        SQLite3ConnectionResult $result
+        private readonly SQLite3Result $result,
+        private readonly array $arrayResult,
+        private readonly ?SQLite3Result $nextResult = null,
     ) {
-        $this->result = $result;
+    }
+
+    public function withNextResult(?SQLite3Result $nextResult = null): self
+    {
+        $new = clone $this;
+        $new->nextResult = $nextResult;
+        return $new;
     }
 
     public function getIterator(): \Traversable
     {
-        // Using a Generator to keep a reference to $this.
-        yield from $this->generator;
+        yield from $this->arrayResult;
     }
 
     public function fetchRow(): ?array
     {
-        if (!$this->generator->valid()) {
-            return null;
-        }
-
-        $current = $this->generator->current();
-        $this->generator->next();
-        return $current;
+        return null;
     }
 
     public function getNextResult(): ?SQLite3Result
     {
-        $this->nextResult ??= async(function (): ?SQLite3Result {
-            self::dispose($this->generator);
-
-            $deferred = $this->result->next ??= new DeferredFuture;
-            $result = $deferred->getFuture()->await();
-
-            if ($result instanceof MysqlResultProxy) {
-                return new self($result);
-            }
-
-            return $result; // Instance of CommandResult or null.
-        });
-
-        return $this->nextResult->await();
+        return $this->nextResult;
     }
 
     public function getRowCount(): ?int
