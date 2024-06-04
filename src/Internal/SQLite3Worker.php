@@ -29,8 +29,8 @@ return function (Channel $channel): void {
     }
     while (true) {
         $command = $channel->receive();
-        \assert($command instanceof SQLite3Command);
         try {
+            \assert($command instanceof SQLite3Command);
             $result = $command->execute($SQLite3);
         } catch (\Throwable $result) {
         }
