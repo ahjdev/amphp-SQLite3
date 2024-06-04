@@ -55,6 +55,7 @@ final class ConnectionProcessor implements SqlTransientResource
             return;
         }
         try {
+            $this->onClose->complete();
             if ($this->context->isClosed()) {
                 return;
             }
@@ -63,7 +64,6 @@ final class ConnectionProcessor implements SqlTransientResource
         } catch (StatusError $e) {
             throw new SQLite3ConnectionException($e->getMessage(), $e->getCode(), $e);
         }
-        $this->onClose->complete();
     }
 
     public function isClosed(): bool
