@@ -43,7 +43,7 @@ final class SQLite3ConnectionStatement implements SQLite3Statement
 
     public function close(): void
     {
-        if ($this->processor) {
+        if (!$this->isClosed()) {
             try {
                 $this->processor->closeStmt($this->statementId);
             } finally {

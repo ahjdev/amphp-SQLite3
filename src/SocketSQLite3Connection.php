@@ -18,6 +18,7 @@ use Amp\Cancellation;
 use Amp\DeferredFuture;
 use Amp\Sql\SqlTransactionIsolation;
 use Amp\Sync\ChannelException;
+use Revolt\EventLoop;
 
 final class SocketSQLite3Connection implements SQLite3Connection
 {
@@ -139,6 +140,6 @@ final class SocketSQLite3Connection implements SQLite3Connection
 
     public function __destruct()
     {
-        $this->close();
+        EventLoop::queue($this->close(...));
     }
 }
