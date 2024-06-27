@@ -63,7 +63,6 @@ final class SQLite3PooledResult implements SQLite3Result, \IteratorAggregate
 
             $next ??= self::fetchNextResult($result, $release);
         })();
-        $this->result = $result;
     }
 
     public function __destruct()

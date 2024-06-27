@@ -14,52 +14,80 @@
 
 namespace Amp\SQLite3\Internal;
 
-use Amp\Sql\SqlResult;
+use Amp\DeferredFuture;
+use Amp\Pipeline\Queue;
 use Amp\SQLite3\SQLite3Result;
+use Amp\Pipeline\ConcurrentIterator;
 
-final class SQLite3ResultProxy implements SqlResult, \IteratorAggregate
+/**
+ * @internal
+ * @psalm-import-type TFieldType from SQLite3Result
+ */
+final class SQLite3ResultProxy
 {
+    /** @var Queue<list<TFieldType>> */
+    private readonly Queue $rowQueue;
+
+    /** @var ConcurrentIterator<list<TFieldType>> */
+    public readonly ConcurrentIterator $rowIterator;
+
+    // /** @var DeferredFuture<SQLite3Result|null>|null */
+    // public ?DeferredFuture $next = null;
+
     public function __construct(
-        private readonly SQLite3Result $result,
-        private readonly array $arrayResult,
-        private readonly ?SQLite3Result $nextResult = null,
+        \SQLite3Result $result,
+        public readonly int $columnCount = 0,
+        public readonly ?int $affectedRows = null,
+        public readonly ?int $insertId = null,
     ) {
+        $this->rowQueue = new Queue();
+        $this->rowIterator = $this->rowQueue->iterate();
+        while ($fetch = $result->fetchArray(SQLITE3_ASSOC)) {
+            $this->rowQueue->pushAsync($fetch);
+        }
+        $this->rowQueue->complete();
     }
 
-    public function withNextResult(?SQLite3Result $nextResult = null): self
+    public function __serialize()
     {
-        $new = clone $this;
-        $new->nextResult = $nextResult;
-        return $new;
+        return [
+            'columnCount'  => $this->columnCount,
+            'affectedRows' => $this->affectedRows,
+            'insertId'     => $this->insertId,
+            'result'       => iterator_to_array($this->rowIterator),
+        ];
     }
 
-    public function getIterator(): \Traversable
+    public function __unserialize($data)
     {
-        yield from $this->arrayResult;
+        $this->rowQueue     = new Queue();
+        $this->rowIterator  = $this->rowQueue->iterate();
+        $this->columnCount  = $data['columnCount'];
+        $this->affectedRows = $data['affectedRows'];
+        $this->insertId     = $data['insertId'];
+        array_map($this->pushRow(...), $data['result']);
+        $this->rowQueue->complete();
     }
 
-    public function fetchRow(): ?array
+    /**
+     * @param list<TFieldType> $row
+     */
+    public function pushRow(array $row): void
     {
-        return null;
+        $this->rowQueue->push($row);
     }
 
-    public function getNextResult(): ?SQLite3Result
+    public function complete(): void
     {
-        return $this->nextResult;
+        if (!$this->rowQueue->isComplete()) {
+            $this->rowQueue->complete();
+        }
     }
 
-    public function getRowCount(): ?int
+    public function error(\Throwable $e): void
     {
-        return $this->result->getRowCount();
-    }
-
-    public function getColumnCount(): int
-    {
-        return $this->result->getColumnCount();
-    }
-
-    public function getLastInsertId(): ?int
-    {
-        return $this->result->getLastInsertId();
+        if (!$this->rowQueue->isComplete()) {
+            $this->rowQueue->error($e);
+        }
     }
 }

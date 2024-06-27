@@ -14,12 +14,12 @@
 
 namespace Amp\SQLite3\Internal;
 
-use Amp\SQLite3\Internal\SQLite3Worker\StatementQueue;
+use \SQLite3;
 use Amp\SQLite3\SQLite3Config;
 use Amp\SQLite3\SQLite3Exception;
-use SQLite3;
+use Amp\SQLite3\Internal\SQLite3Worker\StatementQueue;
 
-final class SQLite3Client extends SQLite3
+final class SQLite3Client
 {
     private StatementQueue $statement;
     private SQLite3 $SQLite3;

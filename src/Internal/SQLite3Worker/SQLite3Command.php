@@ -14,9 +14,11 @@
 
 namespace Amp\SQLite3\Internal\SQLite3Worker;
 
-use Amp\SQLite3\Internal\SQLite3Client;
-use Amp\SQLite3\SQLite3Result;
 use SQLite3Stmt;
+use Amp\SQLite3\SQLite3Result;
+use Amp\SQLite3\Internal\SQLite3Client;
+use Amp\SQLite3\Internal\SQLite3ResultProxy;
+use Amp\SQLite3\Internal\SQLite3CommandResult;
 
 abstract class SQLite3Command
 {
@@ -39,13 +41,16 @@ abstract class SQLite3Command
         return $this->createResult($client, $statement->execute());
     }
 
-    public function createResult(SQLite3Client $client, \SQLite3Result $result): SQLite3Result
+    public function createResult(SQLite3Client $client, \SQLite3Result $result): SQLite3ResultProxy|SQLite3CommandResult
     {
-        [$affectedRows, $lastInsertId] = [$client->getAffectedRows(), $client->getLastInsertId()];
-
-        if ($result->numColumns() === 0) {
-            return new SQLite3WorkerCommandResult($affectedRows, $lastInsertId);
+        [$columnCount, $affectedRows, $lastInsertId] = [
+            $result->numColumns(),
+            $client->getAffectedRows(),
+            $client->getLastInsertId()
+        ];
+        if ($columnCount === 0) {
+            return new SQLite3CommandResult($affectedRows, $lastInsertId);
         }
-        return new SQLite3WorkerResult($result, $affectedRows, $lastInsertId);
+        return new SQLite3ResultProxy($result, $columnCount, $affectedRows, $lastInsertId);
     }
 }

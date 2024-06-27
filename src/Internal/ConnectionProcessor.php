@@ -11,8 +11,6 @@ use Amp\Sql\SqlTransientResource;
 use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command\Prepare;
 use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command\Query;
 use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command\StatementOperation;
-use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerCommandResult;
-use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerResult;
 use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerStatement;
 use Amp\SQLite3\SQLite3Config;
 use Amp\SQLite3\SQLite3ConnectionException;
@@ -44,9 +42,9 @@ final class ConnectionProcessor implements SqlTransientResource
         $this->context->send($config);
         EventLoop::queue($this->listen(...));
         $this->lastUsedAt = \time();
-        $this->deferreds  = new \SplQueue();
-        $this->onReady    = new \SplQueue();
-        $this->onClose    = new DeferredFuture();
+        $this->deferreds  = new \SplQueue;
+        $this->onReady    = new \SplQueue;
+        $this->onClose    = new DeferredFuture;
     }
 
     public function close(): void
@@ -55,8 +53,8 @@ final class ConnectionProcessor implements SqlTransientResource
             return;
         }
         try {
-            $this->context->close();
             $this->onClose->complete();
+            $this->context->close();
         } catch (StatusError $e) {
             throw new SQLite3ConnectionException($e->getMessage(), $e->getCode(), $e);
         }
@@ -84,22 +82,27 @@ final class ConnectionProcessor implements SqlTransientResource
         return $this->deferreds->shift();
     }
 
+    private function handleResult(DeferredFuture $deferred, mixed $result)
+    {
+        if ($result instanceof Throwable) {
+            $deferred->error($result);
+            return;
+        }
+        $result = match (true) {
+            \is_bool($result), \is_string($result)    => $result,
+            $result instanceof SQLite3ResultProxy     => new SQLite3ConnectionResult($result),
+            $result instanceof SQLite3CommandResult   => $result,
+            $result instanceof SQLite3WorkerStatement => new SQLite3ConnectionStatement($this, $result),
+            default => new SQLite3Exception("Invalid data received: " . $result),
+        };
+        $deferred->complete($result);
+    }
+
     private function listen(): void
     {
-        while($data = $this->context->receive()) {
-            if ($data instanceof Throwable) {
-                $this->dequeueDeferred()->error($data);
-                $this->ready();
-                continue;
-            }
-            $data = match (true) {
-                \is_bool($data), \is_string($data) => $data,
-                $data instanceof SQLite3WorkerResult        => new SQLite3ConnectionResult($data),
-                $data instanceof SQLite3WorkerCommandResult => new SQLite3CommandResult($data),
-                $data instanceof SQLite3WorkerStatement     => new SQLite3ConnectionStatement($this, $data),
-                default => new SQLite3Exception("Invalid data received: " . $data),
-            };
-            $this->dequeueDeferred()->complete($data);
+        while(!$this->context->isClosed() && $data = $this->context->receive()) {
+            $defered = $this->dequeueDeferred();
+            EventLoop::queue($this->handleResult(...), $defered, $data);
             $this->ready();
         }
         throw new SQLite3Exception("The connection has been closed");

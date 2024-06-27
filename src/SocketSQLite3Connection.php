@@ -111,7 +111,7 @@ final class SocketSQLite3Connection implements SQLite3Connection
 
         $this->busy = $deferred = new DeferredFuture();
 
-        $sql = \sprintf("BEGIN %s", $this->transactionIsolation->toSql(), );
+        $sql = \sprintf("BEGIN %s", $this->transactionIsolation->toSql());
 
         try {
             $this->processor->query($sql)->await();

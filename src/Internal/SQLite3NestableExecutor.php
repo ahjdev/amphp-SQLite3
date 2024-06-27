@@ -83,16 +83,16 @@ final class SQLite3NestableExecutor implements SQLite3Executor, SqlNestableTrans
 
     public function createSavepoint(string $identifier): void
     {
-        $this->query(\sprintf("SAVEPOINT `%s`", $identifier));
+        $this->query(\sprintf("SAVEPOINT %s", $identifier));
     }
 
     public function rollbackTo(string $identifier): void
     {
-        $this->query(\sprintf("ROLLBACK TO `%s`", $identifier));
+        $this->query(\sprintf("ROLLBACK TO %s", $identifier));
     }
 
     public function releaseSavepoint(string $identifier): void
     {
-        $this->query(\sprintf("RELEASE SAVEPOINT `%s`", $identifier));
+        $this->query(\sprintf("RELEASE %s", $identifier));
     }
 }

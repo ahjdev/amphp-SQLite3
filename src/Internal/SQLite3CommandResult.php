@@ -14,9 +14,6 @@
 
 namespace Amp\SQLite3\Internal;
 
-use Amp\Future;
-use Amp\Sql\Common\SqlCommandResult;
-use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerCommandResult;
 use Amp\SQLite3\SQLite3Result;
 
 /**
@@ -25,24 +22,47 @@ use Amp\SQLite3\SQLite3Result;
  * @implements SQLite3Result<TFieldValue>
  * @implements \IteratorAggregate<int, never>
  */
-final class SQLite3CommandResult extends SqlCommandResult implements SQLite3Result, \IteratorAggregate
+final class SQLite3CommandResult implements SQLite3Result, \IteratorAggregate
 {
-    private ?int $lastInsertId;
-
-    public function __construct(SQLite3WorkerCommandResult $result)
+    public function __construct(private readonly int $affectedRows, private readonly ?int $lastInsertId)
     {
-        /** @var Future<SQLite3Result|null> $future Explicit declaration for Psalm. */
-        $future = Future::complete();
-        parent::__construct($result->getRowCount(), $future);
-        $this->lastInsertId = $result->getLastInsertId() ?: null; // Convert 0 to null
+    }
+
+    public function getIterator(): \EmptyIterator
+    {
+        return new \EmptyIterator;
     }
 
     /**
-     * Changes return type to this library's Result type.
+     * @return null Always returns null for command results.
+     */
+    public function fetchRow(): ?array
+    {
+        return null;
+    }
+
+    /**
+     * @return TResult|null
      */
     public function getNextResult(): ?SQLite3Result
     {
-        return parent::getNextResult();
+        return null;
+    }
+
+    /**
+     * @return int Returns the number of rows affected by the command.
+     */
+    public function getRowCount(): int
+    {
+        return $this->affectedRows;
+    }
+
+    /**
+     * @return null Always returns null for command results.
+     */
+    public function getColumnCount(): ?int
+    {
+        return null;
     }
 
     /**
