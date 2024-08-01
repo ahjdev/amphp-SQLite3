@@ -14,12 +14,6 @@
 
 namespace Amp\SQLite3\Internal;
 
-use Amp\SQLite3\SQLite3Result;
-use Amp\SQLite3\SQLite3Exception;
-use Amp\SQLite3\SQLite3QueryError;
-use Amp\SQLite3\Internal\SQLite3Client;
-use Amp\SQLite3\Internal\SQLite3ChannelException;
-
 abstract class SQLite3Command
 {
     abstract public function execute(SQLite3Client $client): mixed;
@@ -38,13 +32,11 @@ abstract class SQLite3Command
 
     protected function bindExecute(SQLite3Client $SQLite3Client, \SQLite3Stmt $stmt, array $bindings): SQLite3ChannelException|SQLite3ChannelResult
     {
-        try
-        {
+        try {
             $this->bindValues($stmt, $bindings);
             $result = $stmt->execute();
             return $this->createResult($SQLite3Client, $result);
-        } catch (\Throwable $error)
-        {
+        } catch (\Throwable $error) {
             $query = $stmt->getSQL(true);
             return $this->createError($error, $query);
         }

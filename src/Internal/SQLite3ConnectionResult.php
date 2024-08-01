@@ -3,9 +3,8 @@
 namespace Amp\SQLite3\Internal;
 
 use Amp\Future;
-use Revolt\EventLoop;
 use Amp\SQLite3\SQLite3Result;
-use Amp\SQLite3\Internal\SQLite3ChannelResutlArray;
+use Revolt\EventLoop;
 
 /**
  * @internal

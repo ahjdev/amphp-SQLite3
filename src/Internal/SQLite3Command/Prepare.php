@@ -14,9 +14,9 @@
 
 namespace Amp\SQLite3\Internal\SQLite3Command;
 
+use Amp\SQLite3\Internal\SQLite3ChannelStatement;
 use Amp\SQLite3\Internal\SQLite3Client;
 use Amp\SQLite3\Internal\SQLite3Command;
-use Amp\SQLite3\Internal\SQLite3ChannelStatement;
 
 final class Prepare extends SQLite3Command
 {
@@ -31,13 +31,11 @@ final class Prepare extends SQLite3Command
 
     public function execute(SQLite3Client $SQLite3Client): mixed
     {
-        try
-        {
+        try {
             $stmt   = $SQLite3Client->prepare($this->query);
             $uniqid = $SQLite3Client->addStatment($stmt);
             return new SQLite3ChannelStatement($uniqid, $stmt->paramCount());
-        } catch (\Throwable $error)
-        {
+        } catch (\Throwable $error) {
             return $this->createError($error, $this->query);
         }
     }

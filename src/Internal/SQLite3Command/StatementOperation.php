@@ -14,9 +14,9 @@
 
 namespace Amp\SQLite3\Internal\SQLite3Command;
 
+use Amp\SQLite3\Internal\SQLite3ChannelException;
 use Amp\SQLite3\Internal\SQLite3Client;
 use Amp\SQLite3\Internal\SQLite3Command;
-use Amp\SQLite3\Internal\SQLite3ChannelException;
 
 final class StatementOperation extends SQLite3Command
 {
@@ -32,8 +32,7 @@ final class StatementOperation extends SQLite3Command
             return new SQLite3ChannelException("Could not find statement {$this->uniqid}");
         }
 
-        switch ($this->operation)
-        {
+        switch ($this->operation) {
             case 'reset':
                 return $stmt->reset();
 

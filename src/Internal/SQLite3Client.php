@@ -63,12 +63,12 @@ final class SQLite3Client
 
     public function addStatment(\SQLite3Stmt $stmt): string
     {
-        $uniqid = uniqid();
+        $uniqid = \uniqid();
         $this->stmt->set($uniqid, $stmt);
         return $uniqid;
     }
 
-    public function removeStatement(string $uniqid)
+    public function removeStatement(string $uniqid): void
     {
         $this->stmt->delete($uniqid);
     }
@@ -79,12 +79,12 @@ final class SQLite3Client
     }
     public function addResult(\SQLite3Result $result): string
     {
-        $uniqid = uniqid();
+        $uniqid = \uniqid();
         $this->result->set($uniqid, $result);
         return $uniqid;
     }
 
-    public function removeResult(string $uniqid)
+    public function removeResult(string $uniqid): void
     {
         $this->result->delete($uniqid);
     }

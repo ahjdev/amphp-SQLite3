@@ -2,23 +2,22 @@
 
 namespace Amp\SQLite3\Internal;
 
-use Throwable;
-use Amp\Future;
 use Amp\Cancellation;
-use Revolt\EventLoop;
 use Amp\DeferredFuture;
-use Amp\SQLite3\SQLite3Config;
+use Amp\Future;
 use Amp\Parallel\Context\Context;
-use Amp\Sql\SqlTransientResource;
-use Amp\SQLite3\SQLite3Exception;
-use Amp\SQLite3\SQLite3QueryError;
 use Amp\Parallel\Context\StatusError;
-use Amp\SQLite3\SQLite3ConnectionException;
-use Amp\SQLite3\Internal\SQLite3Command\Query;
+use Amp\Sql\SqlTransientResource;
 use Amp\SQLite3\Internal\SQLite3Command\Prepare;
-use function Amp\Parallel\Context\contextFactory;
+use Amp\SQLite3\Internal\SQLite3Command\Query;
 use Amp\SQLite3\Internal\SQLite3Command\ResultOperation;
 use Amp\SQLite3\Internal\SQLite3Command\StatementOperation;
+use Amp\SQLite3\SQLite3Config;
+use Amp\SQLite3\SQLite3ConnectionException;
+use Amp\SQLite3\SQLite3Exception;
+use Amp\SQLite3\SQLite3QueryError;
+use Revolt\EventLoop;
+use function Amp\Parallel\Context\contextFactory;
 
 /**
  * @internal
@@ -86,16 +85,17 @@ final class ConnectionProcessor implements SqlTransientResource
     private function handleResult(DeferredFuture $deferred, mixed $result)
     {
         // SQLite3Exception
-        if ($result instanceof SQLite3ChannelException)
+        if ($result instanceof SQLite3ChannelException) {
             return $this->handleError($deferred, $result);
+        }
 
         // SQLite3Result
-        if ($result instanceof SQLite3ChannelResult)
-        {
-            if ($result->columnCount)
+        if ($result instanceof SQLite3ChannelResult) {
+            if ($result->columnCount) {
                 $result = new SQLite3ConnectionResult($this, $result);
-            else
+            } else {
                 $result = new SQLite3CommandResult($result);
+            }
         }
         // SQLite3Statement
         elseif ($result instanceof SQLite3ChannelStatement) {
@@ -105,7 +105,7 @@ final class ConnectionProcessor implements SqlTransientResource
         // new SQLite3Exception("Invalid data received: " . var_export($result, true))
     }
 
-    private function handleError(DeferredFuture $deferred, SQLite3ChannelException $error)
+    private function handleError(DeferredFuture $deferred, SQLite3ChannelException $error): void
     {
         $query   = $error->query;
         $errcode = $error->code;
@@ -114,8 +114,8 @@ final class ConnectionProcessor implements SqlTransientResource
         $error = new SQLite3Exception($message, $errcode);
         // SQLite3 query exception error
         if (
-            str_ends_with($message, 'incomplete input') ||
-            str_ends_with($message, 'syntax error')
+            \str_ends_with($message, 'incomplete input') ||
+            \str_ends_with($message, 'syntax error')
         ) {
             $error = new SQLite3QueryError($message, $query);
         }

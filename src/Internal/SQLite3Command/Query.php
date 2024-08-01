@@ -30,12 +30,10 @@ final class Query extends SQLite3Command
 
     public function execute(SQLite3Client $SQLite3Client): mixed
     {
-        try
-        {
+        try {
             $result = $SQLite3Client->query($this->query);
             return $this->createResult($SQLite3Client, $result);
-        } catch (\Throwable $error)
-        {
+        } catch (\Throwable $error) {
             return $this->createError($error, $this->query);
         }
     }

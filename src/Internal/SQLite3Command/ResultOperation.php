@@ -14,10 +14,10 @@
 
 namespace Amp\SQLite3\Internal\SQLite3Command;
 
-use Amp\SQLite3\Internal\SQLite3Client;
-use Amp\SQLite3\Internal\SQLite3Command;
 use Amp\SQLite3\Internal\SQLite3ChannelException;
 use Amp\SQLite3\Internal\SQLite3ChannelResutlArray;
+use Amp\SQLite3\Internal\SQLite3Client;
+use Amp\SQLite3\Internal\SQLite3Command;
 
 final class ResultOperation extends SQLite3Command
 {
@@ -33,15 +33,14 @@ final class ResultOperation extends SQLite3Command
             return new SQLite3ChannelException("Could not find result {$this->uniqid}");
         }
 
-        switch ($this->operation)
-        {
+        switch ($this->operation) {
             case 'reset':
                 return $result->reset();
 
             case 'finalize':
                 $SQLite3Client->removeResult($this->uniqid);
                 return $result->finalize();
-    
+
             case 'fetchArray':
                 $result = $result->fetchArray(SQLITE3_ASSOC);
                 return new SQLite3ChannelResutlArray($result);

@@ -14,17 +14,16 @@
 
 namespace Amp\SQLite3\Internal;
 
-use Throwable;
-use Amp\Sync\Channel;
 use Amp\SQLite3\SQLite3Config;
 use Amp\SQLite3\SQLite3ConnectionException;
-use Amp\SQLite3\Internal\SQLite3Command;
+use Amp\Sync\Channel;
+use Throwable;
 
 return (new class {
 
     private SQLite3Client $client;
 
-    public function connectToSQLite3(Channel $channel)
+    public function connectToSQLite3(Channel $channel): void
     {
         $context = $channel->receive();
         \assert($context instanceof SQLite3Config, 'SQLite3Config not found');
@@ -44,14 +43,12 @@ return (new class {
         return $command;
     }
 
-    public function __invoke(Channel $channel)
+    public function __invoke(Channel $channel): void
     {
         $this->connectToSQLite3($channel);
         // do stuff
-        while (!$channel->isClosed())
-        {
-            try
-            {
+        while (!$channel->isClosed()) {
+            try {
                 $command = $this->getCommand($channel);
                 $respone = $command->execute($this->client);
                 if ($respone === null) {
@@ -59,8 +56,7 @@ return (new class {
                     return;
                 }
                 $channel->send($respone);
-            } catch (Throwable $error)
-            {
+            } catch (Throwable $error) {
                 $exception = new SQLite3ChannelStatement($error->getMessage(), $error->getCode());
                 $channel->send($exception);
             }
