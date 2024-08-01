@@ -14,10 +14,10 @@
 
 namespace Amp\SQLite3\Internal;
 
-use Amp\Sql\Common\SqlNestableTransactionExecutor;
 use Amp\SQLite3\SQLite3Executor;
 use Amp\SQLite3\SQLite3Result;
 use Amp\SQLite3\SQLite3Statement;
+use Amp\Sql\Common\SqlNestableTransactionExecutor;
 
 /**
  * @internal
