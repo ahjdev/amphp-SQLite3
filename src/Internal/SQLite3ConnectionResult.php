@@ -30,7 +30,6 @@ final class SQLite3ConnectionResult implements SQLite3Result, \IteratorAggregate
 
     public function __destruct()
     {
-        echo 'destruct' , PHP_EOL;
         EventLoop::queue($this->processor->closeResult(...), $this->uniqid);
     }
 

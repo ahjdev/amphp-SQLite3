@@ -39,7 +39,6 @@ final class ResultOperation extends SQLite3Command
                 return $result->reset();
 
             case 'finalize':
-                file_put_contents('bye', 'bye');
                 $SQLite3Client->removeResult($this->uniqid);
                 return $result->finalize();
     
