@@ -15,25 +15,24 @@
 namespace Amp\SQLite3\Internal;
 
 use Amp\DeferredFuture;
-use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerStatement;
 use Amp\SQLite3\SQLite3Result;
 use Amp\SQLite3\SQLite3Statement;
 
 final class SQLite3ConnectionStatement implements SQLite3Statement
 {
     private int $lastUsedAt;
+    private int $totalParamCount;
+    private string $statementId;
     private readonly DeferredFuture $onClose;
-    private readonly int $statementId;
-    private readonly int $totalParamCount;
 
     public function __construct(
         private ?ConnectionProcessor $processor,
-        SQLite3WorkerStatement $statement,
+        SQLite3ChannelStatement $statement,
     ) {
         $this->onClose         = new DeferredFuture();
         $this->lastUsedAt      = \time();
-        $this->statementId     = $statement->getId();
-        $this->totalParamCount = $statement->getTotalParamCount();
+        $this->statementId     = $statement->uniqid;
+        $this->totalParamCount = $statement->totalParamCount;
     }
 
     public function isClosed(): bool

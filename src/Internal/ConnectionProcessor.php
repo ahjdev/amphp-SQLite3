@@ -2,22 +2,23 @@
 
 namespace Amp\SQLite3\Internal;
 
-use Amp\Cancellation;
-use Amp\DeferredFuture;
-use Amp\Future;
-use Amp\Parallel\Context\Context;
-use Amp\Parallel\Context\StatusError;
-use Amp\Sql\SqlTransientResource;
-use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command\Prepare;
-use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command\Query;
-use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command\StatementOperation;
-use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerStatement;
-use Amp\SQLite3\SQLite3Config;
-use Amp\SQLite3\SQLite3ConnectionException;
-use Amp\SQLite3\SQLite3Exception;
-use Revolt\EventLoop;
 use Throwable;
+use Amp\Future;
+use Amp\Cancellation;
+use Revolt\EventLoop;
+use Amp\DeferredFuture;
+use Amp\SQLite3\SQLite3Config;
+use Amp\Parallel\Context\Context;
+use Amp\Sql\SqlTransientResource;
+use Amp\SQLite3\SQLite3Exception;
+use Amp\SQLite3\SQLite3QueryError;
+use Amp\Parallel\Context\StatusError;
+use Amp\SQLite3\SQLite3ConnectionException;
+use Amp\SQLite3\Internal\SQLite3Command\Query;
+use Amp\SQLite3\Internal\SQLite3Command\Prepare;
 use function Amp\Parallel\Context\contextFactory;
+use Amp\SQLite3\Internal\SQLite3Command\ResultOperation;
+use Amp\SQLite3\Internal\SQLite3Command\StatementOperation;
 
 /**
  * @internal
@@ -42,9 +43,9 @@ final class ConnectionProcessor implements SqlTransientResource
         $this->context->send($config);
         EventLoop::queue($this->listen(...));
         $this->lastUsedAt = \time();
-        $this->deferreds  = new \SplQueue;
-        $this->onReady    = new \SplQueue;
-        $this->onClose    = new DeferredFuture;
+        $this->deferreds = new \SplQueue;
+        $this->onReady = new \SplQueue;
+        $this->onClose = new DeferredFuture;
     }
 
     public function close(): void
@@ -84,23 +85,47 @@ final class ConnectionProcessor implements SqlTransientResource
 
     private function handleResult(DeferredFuture $deferred, mixed $result)
     {
-        if ($result instanceof Throwable) {
-            $deferred->error($result);
-            return;
+        // SQLite3Exception
+        if ($result instanceof SQLite3ChannelException)
+            return $this->handleError($deferred, $result);
+
+        // SQLite3Result
+        if ($result instanceof SQLite3ChannelResult)
+        {
+            if ($result->columnCount)
+                $result = new SQLite3ConnectionResult($this, $result);
+            else
+                $result = new SQLite3CommandResult($result);
         }
-        $result = match (true) {
-            \is_bool($result), \is_string($result)    => $result,
-            $result instanceof SQLite3ResultProxy     => new SQLite3ConnectionResult($result),
-            $result instanceof SQLite3CommandResult   => $result,
-            $result instanceof SQLite3WorkerStatement => new SQLite3ConnectionStatement($this, $result),
-            default => new SQLite3Exception("Invalid data received: " . $result),
-        };
+        // SQLite3Statement
+        elseif ($result instanceof SQLite3ChannelStatement) {
+            $result = new SQLite3ConnectionStatement($this, $result);
+        }
         $deferred->complete($result);
+        // new SQLite3Exception("Invalid data received: " . var_export($result, true))
+    }
+
+    private function handleError(DeferredFuture $deferred, SQLite3ChannelException $error)
+    {
+        $query   = $error->query;
+        $errcode = $error->code;
+        $message = $error->message;
+        // SQLite3 exception
+        $error = new SQLite3Exception($message, $errcode);
+        // SQLite3 query exception error
+        if (
+            str_ends_with($message, 'incomplete input') ||
+            str_ends_with($message, 'syntax error')
+        ) {
+            $error = new SQLite3QueryError($message, $query);
+        }
+        // Throw exception
+        $deferred->error($error);
     }
 
     private function listen(): void
     {
-        while(!$this->context->isClosed() && $data = $this->context->receive()) {
+        while (!$this->context->isClosed() && $data = $this->context->receive()) {
             $defered = $this->dequeueDeferred();
             EventLoop::queue($this->handleResult(...), $defered, $data);
             $this->ready();
@@ -113,7 +138,8 @@ final class ConnectionProcessor implements SqlTransientResource
      */
     private function appendTask(\Closure $callback): void
     {
-        if (!$this->onReady->isEmpty()
+        if (
+            !$this->onReady->isEmpty()
             || !$this->deferreds->isEmpty()
         ) {
             $this->onReady->push($callback);
@@ -172,40 +198,55 @@ final class ConnectionProcessor implements SqlTransientResource
         });
     }
 
-    public function bindParam(int $stmtId, int|string $param, string $data): void
+    public function bindParam(string $stmtId, int|string $param, string $data): void
     {
-        $this->appendTask(function () use ($stmtId, $param, $data): void {
-            $this->context->send(new StatementOperation($stmtId, 'bindValue', [$param => $data]));
+        $this->startCommand(function () use ($stmtId, $param, $data): void {
+            $this->context->send(new StatementOperation($stmtId, 'bindValue', [ $param => $data ]));
             $this->ready();
         });
     }
 
-    public function executeStmt(int $stmtId, array $params): Future
+    public function executeStmt(string $stmtId, array $params): Future
     {
         return $this->startCommand(function () use ($stmtId, $params): void {
             $this->context->send(new StatementOperation($stmtId, 'execute', $params));
         });
     }
 
-    public function resetStmt(int $stmtId): Future
+    public function resetStmt(string $stmtId): Future
     {
         return $this->startCommand(function () use ($stmtId): void {
             $this->context->send(new StatementOperation($stmtId, 'reset'));
         });
     }
 
-    public function getQueryStmt(int $stmtId): Future
+    public function getQueryStmt(string $stmtId): Future
     {
         return $this->startCommand(function () use ($stmtId): void {
             $this->context->send(new StatementOperation($stmtId, 'getSql'));
         });
     }
 
-    public function closeStmt(int $stmtId): void
+    public function closeStmt(string $stmtId): void
     {
-        $this->appendTask(function () use ($stmtId): void {
+        $this->startCommand(function () use ($stmtId): void {
             $this->context->send(new StatementOperation($stmtId, 'close'));
             $this->ready();
+        });
+    }
+
+    public function closeResult(string $resultId): void
+    {
+        $this->startCommand(function () use ($resultId): void {
+            $this->context->send(new ResultOperation($resultId, 'finalize'));
+            $this->ready();
+        });
+    }
+
+    public function getNextResult(string $resultId): Future
+    {
+        return $this->startCommand(function () use ($resultId): void {
+            $this->context->send(new ResultOperation($resultId, 'fetchArray'));
         });
     }
 

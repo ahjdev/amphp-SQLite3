@@ -12,21 +12,14 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQLite3\Internal\SQLite3Worker;
+namespace Amp\SQLite3\Internal;
 
-final class SQLite3WorkerStatement
+/**
+ * @internal
+ */
+final readonly class SQLite3ChannelResutlArray
 {
-    public function __construct(private int $id, private int $totalParamCount)
+    public function __construct(public ?array $result)
     {
-    }
-
-    public function getId(): int
-    {
-        return $this->id;
-    }
-
-    public function getTotalParamCount(): int
-    {
-        return $this->totalParamCount;
     }
 }

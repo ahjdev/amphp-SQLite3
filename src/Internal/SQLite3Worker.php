@@ -14,27 +14,56 @@
 
 namespace Amp\SQLite3\Internal;
 
+use Throwable;
 use Amp\Sync\Channel;
 use Amp\SQLite3\SQLite3Config;
-use Amp\SQLite3\SQLite3Exception;
-use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command;
+use Amp\SQLite3\SQLite3ConnectionException;
+use Amp\SQLite3\Internal\SQLite3Command;
 
-return function (Channel $channel): void
-{
-    $config = $channel->receive();
-    \assert($config instanceof SQLite3Config);
-    try {
-        $SQLite3 = new SQLite3Client($config);
-    } catch (\Throwable $e) {
-        $channel->send(new SQLite3Exception("Cannot connect to SQLite3", previous: $e));
-    }
-    while (true) {
-        $command = $channel->receive();
+return (new class {
+
+    private SQLite3Client $client;
+
+    public function connectToSQLite3(Channel $channel)
+    {
+        $context = $channel->receive();
+        \assert($context instanceof SQLite3Config, 'SQLite3Config not found');
+        // Connect to Sqlite3
         try {
-            \assert($command instanceof SQLite3Command);
-            $result = $command->execute($SQLite3);
-        } catch (\Throwable $result) {
+            $this->client = new SQLite3Client($context);
+        } catch (Throwable $e) {
+            $channel->send(new SQLite3ConnectionException("Cannot connect to SQLite3", previous: $e));
+            $channel->send(null);
         }
-        $channel->send($result);
     }
-};
+
+    public function getCommand(Channel $channel): SQLite3Command|Throwable
+    {
+        $command = $channel->receive();
+        \assert($command instanceof SQLite3Command, 'Inavlid SQLite3Command');
+        return $command;
+    }
+
+    public function __invoke(Channel $channel)
+    {
+        $this->connectToSQLite3($channel);
+        // do stuff
+        while (!$channel->isClosed())
+        {
+            try
+            {
+                $command = $this->getCommand($channel);
+                $respone = $command->execute($this->client);
+                if ($respone === null) {
+                    $channel->close();
+                    return;
+                }
+                $channel->send($respone);
+            } catch (Throwable $error)
+            {
+                $exception = new SQLite3ChannelStatement($error->getMessage(), $error->getCode());
+                $channel->send($exception);
+            }
+        }
+    }
+})(...);

@@ -12,40 +12,18 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQLite3\Internal\SQLite3Worker;
+namespace Amp\SQLite3\Internal;
 
-use SQLite3Stmt;
-
-final class StatementQueue
+/**
+ * @internal
+ */
+final readonly class SQLite3ChannelResult
 {
-    /** @var list<SQLite3Stmt> */
-    public array $cache = [];
-
-    public function __construct()
-    {
-    }
-
-    public function get(int $key): ?SQLite3Stmt
-    {
-        if (!isset($this->cache[$key])) {
-            return null;
-        }
-        return $this->cache[$key];
-    }
-
-    public function set(SQLite3Stmt $value): int
-    {
-        $key = \spl_object_id($value);
-        unset($this->cache[$key]);
-        $this->cache[$key] = $value;
-        return $key;
-    }
-
-    public function delete(int $key): bool
-    {
-        $exists = isset($this->cache[$key]);
-        $exists && $this->cache[$key]->close();
-        unset($this->cache[$key]);
-        return $exists;
+    public function __construct(
+        public ?string $uniqid,
+        public int $columnCount,
+        public ?int $lastInsertId,
+        public ?int $affectedRows,
+    ) {
     }
 }

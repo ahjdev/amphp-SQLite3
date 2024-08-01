@@ -12,16 +12,15 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command;
+namespace Amp\SQLite3\Internal;
 
-use Amp\SQLite3\Internal\SQLite3Client;
-use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command;
-
-final class Close extends SQLite3Command
+final readonly class SQLite3ChannelException
 {
-    public function execute(SQLite3Client $client): mixed
-    {
-        $client->getSQLite3()->close();
-        return null;
+    public function __construct(
+        public string $message = "",
+        public int $code = 0,
+        public string $query = '',
+        public ?\Throwable $previous = null
+    ) {
     }
 }

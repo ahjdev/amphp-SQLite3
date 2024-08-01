@@ -14,39 +14,46 @@
 
 namespace Amp\SQLite3\Internal;
 
-use \SQLite3;
+use Amp\Cache\Cache;
+use Amp\Cache\LocalCache;
 use Amp\SQLite3\SQLite3Config;
-use Amp\SQLite3\SQLite3Exception;
-use Amp\SQLite3\Internal\SQLite3Worker\StatementQueue;
 
 final class SQLite3Client
 {
-    private StatementQueue $statement;
-    private SQLite3 $SQLite3;
+    /** @var Cache<\SQLite3Result> */
+    private Cache $result;
+
+    /** @var Cache<\SQLite3Stmt> */
+    private Cache $stmt;
+
+    private \SQLite3 $SQLite3;
 
     public function __construct(SQLite3Config $request)
     {
-        $this->SQLite3   = new SQLite3($request->getFilename(), $request->getFlags(), $request->getEncryptionKey());
-        $this->statement = new StatementQueue;
+        $this->stmt    = new LocalCache();
+        $this->result  = new LocalCache();
+        $this->SQLite3 = new \SQLite3($request->getFilename(), $request->getFlags(), $request->getEncryptionKey());
+        $this->SQLite3->enableExceptions(true);
     }
 
-    public function getSQLite3(): SQLite3
+    public function query(string $query): \SQLite3Result
     {
-        return $this->SQLite3;
+        return $this->SQLite3->query($query);
     }
 
-    public function getLastError(string $class = SQLite3Exception::class)
+    public function prepare(string $query): \SQLite3Stmt
     {
-        $class = \is_subclass_of($class, \Exception::class) ? $class : SQLite3Exception::class;
-        return new $class(
-            $this->SQLite3->lastErrorMsg(),
-            $this->SQLite3->lastErrorCode(),
-        );
+        return $this->SQLite3->prepare($query);
     }
 
-    public function getLastInsertId(): int
+    public function close(): bool
     {
-        return $this->SQLite3->lastInsertRowID();
+        return $this->SQLite3->close();
+    }
+
+    public function getLastInsertId(): ?int
+    {
+        return $this->SQLite3->lastInsertRowID() ?: null;
     }
 
     public function getAffectedRows(): int
@@ -54,8 +61,36 @@ final class SQLite3Client
         return $this->SQLite3->changes();
     }
 
-    public function getStatements(): StatementQueue
+    public function addStatment(\SQLite3Stmt $stmt): string
     {
-        return $this->statement;
+        $uniqid = uniqid();
+        $this->stmt->set($uniqid, $stmt);
+        return $uniqid;
+    }
+
+    public function removeStatement(string $uniqid)
+    {
+        $this->stmt->delete($uniqid);
+    }
+
+    public function getStatement(string $uniqid): \SQLite3Stmt
+    {
+        return $this->stmt->get($uniqid);
+    }
+    public function addResult(\SQLite3Result $result): string
+    {
+        $uniqid = uniqid();
+        $this->result->set($uniqid, $result);
+        return $uniqid;
+    }
+
+    public function removeResult(string $uniqid)
+    {
+        $this->result->delete($uniqid);
+    }
+
+    public function getResult(string $uniqid): \SQLite3Result
+    {
+        return $this->result->get($uniqid);
     }
 }

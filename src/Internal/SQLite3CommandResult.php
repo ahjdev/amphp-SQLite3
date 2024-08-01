@@ -24,8 +24,14 @@ use Amp\SQLite3\SQLite3Result;
  */
 final class SQLite3CommandResult implements SQLite3Result, \IteratorAggregate
 {
-    public function __construct(private readonly int $affectedRows, private readonly ?int $lastInsertId)
+    private int $affectedRows;
+
+    private ?int $lastInsertId;
+
+    public function __construct(SQLite3ChannelResult $result)
     {
+        $this->affectedRows = $result->affectedRows;
+        $this->lastInsertId = $result->lastInsertId;
     }
 
     public function getIterator(): \EmptyIterator

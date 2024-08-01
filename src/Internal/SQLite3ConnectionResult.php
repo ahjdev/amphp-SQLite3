@@ -3,9 +3,9 @@
 namespace Amp\SQLite3\Internal;
 
 use Amp\Future;
-use Amp\SQLite3\SQLite3Result;
 use Revolt\EventLoop;
-use function Amp\async;
+use Amp\SQLite3\SQLite3Result;
+use Amp\SQLite3\Internal\SQLite3ChannelResutlArray;
 
 /**
  * @internal
@@ -14,25 +14,24 @@ use function Amp\async;
  */
 final class SQLite3ConnectionResult implements SQLite3Result, \IteratorAggregate
 {
-    private readonly \Generator $generator;
-
     private ?Future $nextResult = null;
+    private string $uniqid;
+    private int $columnCount;
+    private ?int $affectedRows;
+    private ?int $lastInsertId;
 
-    public function __construct(private readonly SQLite3ResultProxy $result)
+    public function __construct(private ?ConnectionProcessor $processor, SQLite3ChannelResult $result)
     {
-        $this->generator = self::iterate($result);
-    }
-
-    private static function iterate(SQLite3ResultProxy $result): \Generator
-    {
-        foreach ($result->rowIterator as $name => $row) {
-            yield $name => $row;
-        }
+        $this->uniqid = $result->uniqid;
+        $this->columnCount  = $result->columnCount;
+        $this->affectedRows = $result->affectedRows;
+        $this->lastInsertId = $result->lastInsertId;
     }
 
     public function __destruct()
     {
-        EventLoop::queue(self::dispose(...), $this->generator);
+        echo 'destruct' , PHP_EOL;
+        EventLoop::queue($this->processor->closeResult(...), $this->uniqid);
     }
 
     private static function dispose(\Generator $generator): void
@@ -49,45 +48,41 @@ final class SQLite3ConnectionResult implements SQLite3Result, \IteratorAggregate
 
     public function getIterator(): \Traversable
     {
-        // Using a Generator to keep a reference to $this.
-        yield from $this->generator;
+        while ($future = $this->processor->getNextResult($this->uniqid)->await()) {
+            /** @var SQLite3ChannelResutlArray */
+            yield $future->result ?? [];
+        }
     }
 
     public function fetchRow(): ?array
     {
-        if (!$this->generator->valid()) {
-            return null;
-        }
+        // if (!$this->generator->valid()) {
+        //     return null;
+        // }
 
-        $current = $this->generator->current();
-        $this->generator->next();
-        return $current;
+        // $current = $this->result->result;
+        // $this->generator->next();
+        // return $current;
+        return null;
     }
 
     public function getNextResult(): ?SQLite3Result
     {
-        $this->nextResult ??= async(function (): ?SQLite3Result {
-            self::dispose($this->generator);
-            if ($this->generator->valid()) {
-                return $this->generator->next();
-            }
-            return null;
-        });
-        return $this->nextResult->await();
+        return null;
     }
 
     public function getRowCount(): ?int
     {
-        return $this->result->affectedRows;
+        return $this->affectedRows;
     }
 
     public function getColumnCount(): int
     {
-        return $this->result->columnCount;
+        return $this->columnCount;
     }
 
     public function getLastInsertId(): ?int
     {
-        return $this->result->insertId;
+        return $this->lastInsertId;
     }
 }

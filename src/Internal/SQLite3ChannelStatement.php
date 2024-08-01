@@ -12,27 +12,14 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command;
+namespace Amp\SQLite3\Internal;
 
-use Amp\SQLite3\Internal\SQLite3Client;
-use Amp\SQLite3\Internal\SQLite3Worker\SQLite3Command;
-use Amp\SQLite3\Internal\SQLite3Worker\SQLite3WorkerStatement;
-use Amp\SQLite3\SQLite3QueryError;
-
-final class Prepare extends SQLite3Command
+/**
+ * @internal
+ */
+final readonly class SQLite3ChannelStatement
 {
-    public function __construct(private string $query)
+    public function __construct(public string $uniqid, public int $totalParamCount)
     {
-    }
-
-    public function execute(SQLite3Client $client): mixed
-    {
-        $statement = $client->getSQLite3()->prepare($this->query);
-        if (!$statement) {
-            return $client->getLastError(SQLite3QueryError::class);
-        }
-        $id = $client->getStatements()->set($statement);
-        $totalParamCount = $statement->paramCount();
-        return new SQLite3WorkerStatement($id, $totalParamCount);
     }
 }
