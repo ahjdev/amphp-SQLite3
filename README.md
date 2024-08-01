@@ -1,1 +1,1 @@
-# Asynchronous SQLite3 client for PHP based on Amp.
+# Asynchronous SQLite3 client for PHP based on amphp.
