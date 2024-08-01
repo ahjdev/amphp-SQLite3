@@ -35,7 +35,8 @@ phar5
 
 # Vscode
 .vscode/*
-.vscode
+!.vscode/settings.json
+!.vscode/extensions.json
 .php_cs.cache
 .phpdoc_cache
 *bak
@@ -49,7 +50,7 @@ config.json
 /Caddyfile
 /changelog
 
-#tests
+# Project
 test.php
 test.sqlite3
 test.sqlite
