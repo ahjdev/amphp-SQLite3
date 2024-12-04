@@ -6,7 +6,7 @@ function connect(
     string $filename,
     int $flags = SQLITE3_OPEN_READWRITE | SQLITE3_OPEN_CREATE,
     string $encryptionKey = ''
-): SocketSQLite3Connection {
+): SQLite3WorkerConnection {
     $config = new SQLite3Config($filename, $flags, $encryptionKey);
-    return SocketSQLite3Connection::connect($config);
+    return SQLite3WorkerConnection::connect($config);
 }
