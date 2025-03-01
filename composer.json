@@ -25,7 +25,6 @@
         }
     },
     "require": {
-        "php-64bit"       : ">=8.2.17",
         "ext-sqlite3"     : "*",
         "amphp/parallel"  : "^2",
         "amphp/sql-common": "^2"
