@@ -65,13 +65,6 @@ final class SQLite3Task implements Task
 
             case 'query':
                 $handle = $driver->query(...$this->args);
-                $id = $handle->getId();
-
-                if ($handle->getColumnCount()) {
-                    $resultCache->set($id, $handle);
-                    $handle->onClose(static fn (): ?bool => $resultCache->delete($id));
-                }
-
                 return $this->createResult($handle);
 
             case 'prepare':
@@ -151,8 +144,15 @@ final class SQLite3Task implements Task
 
     private function createResult(BlockingSQLite3Result $result)
     {
+        $id = $result->getId();
+
+        if ($result->getColumnCount()) {
+            self::$resultCache->set($id, $result);
+            $result->onClose(static fn (): ?bool => self::$resultCache->delete($id));
+        }
+
         return [
-            $result->getId(),
+            $id,
             $result->getLastInsertId(),
             $result->getRowCount(),
             $result->getColumnCount(),
