@@ -5,23 +5,23 @@ namespace Amp\SQLite3\Driver;
 use Amp\Future;
 use Revolt\EventLoop;
 use Amp\DeferredFuture;
+use function Amp\async;
 use Amp\SQLite3\Internal;
 use Amp\SQLite3\SQLite3Result;
 use Amp\SQLite3\SQLite3Exception;
 use Amp\SQLite3\SQLite3Statement;
 use Amp\Parallel\Worker\WorkerException;
-use Amp\Parallel\Worker\TaskFailureException;
+use Amp\Parallel\Worker\TaskFailureThrowable;
 
 /**
  * @psalm-import-type TFieldType from SQLite3Result
  * @template TFieldValue
  * @template TResult of SQLite3Result
  * @implements SQLite3Statement<TFieldValue>
- * @implements \IteratorAggregate<int, array<string, TFieldValue>>
  */
 final class ParallelSQLite3Statement implements SQLite3Statement
 {
-    private ?int $id;
+    private ?string $id;
 
     private int $lastUsedAt;
 
@@ -34,7 +34,7 @@ final class ParallelSQLite3Statement implements SQLite3Statement
 
     public function __construct(
         private readonly Internal\SQLite3Worker $worker,
-        int $id,
+        string $id,
     ) {
         $this->id = $id;
         $this->lastUsedAt = \time();
@@ -111,8 +111,8 @@ final class ParallelSQLite3Statement implements SQLite3Statement
 
         try {
             return $this->worker->execute(new Internal\SQLite3Task('execute', $params, $this->id));
-        } catch (TaskFailureException $exception) {
-            throw new SQLite3Exception("Reading from the file failed", 0, $exception);
+        } catch (TaskFailureThrowable $exception) {
+            throw new SQLite3Exception("Executing statement from the SQLite3Stmt failed", 0, $exception);
         } catch (WorkerException $exception) {
             throw new SQLite3Exception("Sending the task to the worker failed", 0, $exception);
         } finally {
@@ -141,8 +141,8 @@ final class ParallelSQLite3Statement implements SQLite3Statement
 
         try {
             return $this->worker->execute(new Internal\SQLite3Task('getQuery', [], $this->id));
-        } catch (TaskFailureException $exception) {
-            throw new SQLite3Exception("Reading from the file failed", 0, $exception);
+        } catch (TaskFailureThrowable $exception) {
+            throw new SQLite3Exception("Getting query from the SQLite3Stmt failed", 0, $exception);
         } catch (WorkerException $exception) {
             throw new SQLite3Exception("Sending the task to the worker failed", 0, $exception);
         } finally {

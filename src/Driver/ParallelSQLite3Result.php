@@ -5,11 +5,12 @@ namespace Amp\SQLite3\Driver;
 use Amp\Future;
 use Revolt\EventLoop;
 use Amp\DeferredFuture;
+use function Amp\async;
 use Amp\SQLite3\Internal;
 use Amp\SQLite3\SQLite3Result;
 use Amp\SQLite3\SQLite3Exception;
 use Amp\Parallel\Worker\WorkerException;
-use Amp\Parallel\Worker\TaskFailureException;
+use Amp\Parallel\Worker\TaskFailureThrowable;
 
 /**
  * @psalm-import-type TFieldType from SQLite3Result
@@ -18,7 +19,7 @@ use Amp\Parallel\Worker\TaskFailureException;
  * @implements SQLite3Result<TFieldValue>
  * @implements \IteratorAggregate<int, array<string, TFieldValue>>
  */
-final class ParallelSQLite3Result implements SQLite3Result
+final class ParallelSQLite3Result implements SQLite3Result, \IteratorAggregate
 {
     private ?int $id;
 
@@ -108,8 +109,8 @@ final class ParallelSQLite3Result implements SQLite3Result
 
         try {
             return $this->worker->execute(new Internal\SQLite3Task('columnName', [$column], $this->id));
-        } catch (TaskFailureException $exception) {
-            throw new SQLite3Exception("Reading from the file failed", 0, $exception);
+        } catch (TaskFailureThrowable $exception) {
+            throw new SQLite3Exception("Reading columnName from the SQLite3Result failed", 0, $exception);
         } catch (WorkerException $exception) {
             throw new SQLite3Exception("Sending the task to the worker failed", 0, $exception);
         } finally {
@@ -138,8 +139,8 @@ final class ParallelSQLite3Result implements SQLite3Result
 
         try {
             return $this->worker->execute(new Internal\SQLite3Task('columnType', [$column], $this->id));
-        } catch (TaskFailureException $exception) {
-            throw new SQLite3Exception("Reading from the file failed", 0, $exception);
+        } catch (TaskFailureThrowable $exception) {
+            throw new SQLite3Exception("Reading columnType from the SQLite3Result failed", 0, $exception);
         } catch (WorkerException $exception) {
             throw new SQLite3Exception("Sending the task to the worker failed", 0, $exception);
         } finally {
@@ -159,10 +160,10 @@ final class ParallelSQLite3Result implements SQLite3Result
         return $this->lastInsertId;
     }
 
-    // public function fetchRow(): ?array
-    // {
-    //     return $this->handle->fetchArray(\SQLITE3_ASSOC) ?: null;
-    // }
+    public function fetchRow(): ?array
+    {
+        return $this->worker->execute(new Internal\SQLite3Task('fetchRow', [], $this->id));
+    }
 
     public function getRowCount(): ?int
     {
@@ -174,10 +175,10 @@ final class ParallelSQLite3Result implements SQLite3Result
         return $this->columnCount;
     }
 
-    // public function getIterator(): \Traversable
-    // {
-    //     while (!$fetch = $this->fetchRow()) {
-    //         yield $fetch; // todo
-    //     }
-    // }
+    public function getIterator(): \Traversable
+    {
+        while (!$fetch = $this->fetchRow()) {
+            yield $fetch;
+        }
+    }
 }

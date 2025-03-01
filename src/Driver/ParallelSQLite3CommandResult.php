@@ -12,7 +12,7 @@
  * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
  */
 
-namespace Amp\SQLite3\Internal;
+namespace Amp\SQLite3\Driver;
 
 use Amp\SQLite3\SQLite3Result;
 

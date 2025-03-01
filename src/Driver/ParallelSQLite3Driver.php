@@ -2,104 +2,108 @@
 
 namespace Amp\SQLite3\Driver;
 
-use Amp\File\FilesystemDriver;
-use Amp\File\FilesystemException;
-use Amp\File\Internal;
 use Amp\Future;
-use Amp\Parallel\Worker\ContextWorkerPool;
-use Amp\Parallel\Worker\DelegatingWorkerPool;
-use Amp\Parallel\Worker\LimitedWorkerPool;
-use Amp\Parallel\Worker\TaskFailureThrowable;
-use Amp\Parallel\Worker\Worker;
-use Amp\Parallel\Worker\WorkerException;
-use Amp\Parallel\Worker\WorkerPool;
-use Amp\SQLite3\SQLite3Driver;
+use Revolt\EventLoop;
+use Amp\DeferredFuture;
 use function Amp\async;
+use Amp\SQLite3\Internal;
+use Amp\SQLite3\SQLite3Config;
+use Amp\Parallel\Worker\Worker;
+use Amp\Sql\SqlTransientResource;
+use Amp\SQLite3\SQLite3Exception;
+use Amp\Parallel\Context\StatusError;
+use Amp\Parallel\Worker\WorkerException;
+use Amp\Parallel\Worker\ContextWorkerPool;
+use Amp\Parallel\Worker\LimitedWorkerPool;
+use Amp\SQLite3\SQLite3ConnectionException;
+use Amp\Parallel\Worker\TaskFailureThrowable;
+use Amp\SQLite3\SQLite3QueryError;
 
-// private readonly int $id,
-// private readonly ?int $lastInsertId,
-// private readonly ?int $affectedRows,
-
-final class ParallelSQLite3Driver implements SQLite3Driver
+/** @internal */
+final class ParallelSQLite3Driver implements SqlTransientResource
 {
-    private ?int $id;
+    public const DEFAULT_WORKER_LIMIT = 8;
 
-    private int $position;
+    /** @var \WeakMap<Worker, int> */
+    private \WeakMap $workerStorage;
 
-    private int $size;
+    /** @var Future<Worker>|null Pending worker request */
+    private ?Future $pendingWorker = null;
 
-    /** @var bool True if an operation is pending. */
-    private bool $busy = false;
+    /** @var \SplQueue<DeferredFuture> */
+    private readonly \SplQueue $deferreds;
 
-    /** @var int Number of pending write operations. */
-    private int $pendingWrites = 0;
-
-    private bool $writable;
-
-    private ?Future $closing = null;
+    /** @var \SplQueue<\Closure():void> */
+    private readonly \SplQueue $onReady;
 
     private readonly DeferredFuture $onClose;
 
-    private ?LockType $lockType = null;
+    private readonly LimitedWorkerPool $pool;
 
-    public function __construct(
-        private readonly Internal\FileWorker $worker,
-        int $id,
-        private readonly string $path,
-        int $size,
-        private readonly string $mode,
-    ) {
-        $this->id = $id;
-        $this->size = $size;
-        $this->writable = $this->mode[0] !== 'r';
-        $this->position = $this->mode[0] === 'a' ? $this->size : 0;
+    private int $lastUsedAt;
 
+    public function __construct(private readonly SQLite3Config $config)
+    {
+        $this->lastUsedAt = \time();
+        /** @var \WeakMap<Worker, int> For Psalm. */
+        $this->workerStorage = new \WeakMap();
+        $this->deferreds = new \SplQueue;
+        $this->onReady = new \SplQueue;
         $this->onClose = new DeferredFuture;
+        $this->pool    = new ContextWorkerPool(self::DEFAULT_WORKER_LIMIT, new Internal\SQLite3WorkerFactory($config));
     }
 
-    public function __destruct()
+    private function selectWorker(): Worker
     {
-        if ($this->id !== null && $this->worker->isRunning()) {
-            $id = $this->id;
-            $worker = $this->worker;
-            EventLoop::queue(static fn () => $worker->execute(new Internal\FileTask('fclose', [], $id)));
+        $this->pendingWorker?->await(); // Wait for any currently pending request for a worker.
+
+        if ($this->workerStorage->count() < $this->pool->getWorkerLimit()) {
+            $this->pendingWorker = async($this->pool->getWorker(...));
+            $worker = $this->pendingWorker->await();
+            $this->pendingWorker = null;
+
+            $this->workerStorage[$worker] = 1;
+
+            return $worker;
         }
 
-        if (!$this->onClose->isComplete()) {
-            $this->onClose->complete();
+        $max = \PHP_INT_MAX;
+        foreach ($this->workerStorage as $storedWorker => $count) {
+            if ($count <= $max) {
+                $worker = $storedWorker;
+                $max = $count;
+            }
         }
+
+        \assert(isset($worker) && $worker instanceof Worker);
+
+        if (!$worker->isRunning()) {
+            unset($this->workerStorage[$worker]);
+            return $this->selectWorker();
+        }
+
+        $this->workerStorage[$worker] += 1;
+
+        return $worker;
     }
 
     public function close(): void
     {
-        if (!$this->worker->isRunning()) {
+        if ($this->onClose->isComplete()) {
             return;
         }
-
-        if ($this->closing) {
-            $this->closing->await();
-            return;
-        }
-
-        $this->writable = false;
-
-        $this->closing = async(function (): void {
-            $id = $this->id;
-            $this->id = null;
-            $this->worker->execute(new Internal\FileTask('fclose', [], $id));
-        });
 
         try {
-            $this->closing->await();
-        } finally {
             $this->onClose->complete();
-            $this->lockType = null;
+            $this->pool->shutdown();
+        } catch (StatusError $e) {
+            throw new SQLite3ConnectionException($e->getMessage(), $e->getCode(), $e);
         }
     }
 
     public function isClosed(): bool
     {
-        return $this->closing !== null;
+        return !$this->pool->isRunning();
     }
 
     public function onClose(\Closure $onClose): void
@@ -107,186 +111,91 @@ final class ParallelSQLite3Driver implements SQLite3Driver
         $this->onClose->getFuture()->finally($onClose);
     }
 
-    public function truncate(int $size): void
+    // private function handleError(DeferredFuture $deferred, SQLite3ChannelException $error): void
+    // {
+    //     $query   = $error->query;
+    //     $errcode = $error->code;
+    //     $message = $error->message;
+    //     // SQLite3 exception
+    //     $error = new SQLite3Exception($message, $errcode);
+    //     // SQLite3 query exception error
+    //     if (
+    //         \str_ends_with($message, 'incomplete input') ||
+    //         \str_ends_with($message, 'syntax error')
+    //     ) {
+    //         $error = new SQLite3QueryError($message, $query);
+    //     }
+    //     // Throw exception
+    //     $deferred->error($error);
+    // }
+
+    public function getConfig(): SQLite3Config
     {
-        if ($this->id === null) {
-            throw new ClosedException("The file has been closed");
-        }
+        return $this->config;
+    }
 
-        if ($this->busy) {
-            throw new PendingOperationError;
-        }
+    public function getLastUsedAt(): int
+    {
+        return $this->lastUsedAt;
+    }
 
-        if (!$this->writable) {
-            throw new ClosedException("The file is no longer writable");
-        }
 
-        ++$this->pendingWrites;
-        $this->busy = true;
+    public function query(string $query): ParallelSQLite3Result|ParallelSQLite3CommandResult
+    {
+        $worker = $this->selectWorker();
 
-        try {
-            $this->worker->execute(new Internal\FileTask('ftruncate', [$size], $this->id));
-            $this->size = $size;
-        } catch (TaskFailureException $exception) {
-            throw new StreamException("Reading from the file failed", 0, $exception);
-        } catch (WorkerException $exception) {
-            throw new StreamException("Sending the task to the worker failed", 0, $exception);
-        } finally {
-            if (--$this->pendingWrites === 0) {
-                $this->busy = false;
+        $workerStorage = $this->workerStorage;
+        $worker = new Internal\SQLite3Worker($worker, static function (Worker $worker) use ($workerStorage): void {
+            if (!isset($workerStorage[$worker])) {
+                return;
             }
-        }
-    }
 
-    public function eof(): bool
-    {
-        return $this->pendingWrites === 0 && $this->size <= $this->position;
-    }
-
-    public function lock(LockType $type, ?Cancellation $cancellation = null): void
-    {
-        $this->flock('lock', $type, $cancellation);
-        $this->lockType = $type;
-    }
-
-    public function tryLock(LockType $type): bool
-    {
-        $locked = $this->flock('try-lock', $type);
-        if ($locked) {
-            $this->lockType = $type;
-        }
-
-        return $locked;
-    }
-
-    public function unlock(): void
-    {
-        $this->flock('unlock');
-        $this->lockType = null;
-    }
-
-    public function getLockType(): ?LockType
-    {
-        return $this->lockType;
-    }
-
-    private function flock(string $action, ?LockType $type = null, ?Cancellation $cancellation = null): bool
-    {
-        if ($this->id === null) {
-            throw new ClosedException("The file has been closed");
-        }
-
-        $this->busy = true;
-
-        try {
-            return $this->worker->execute(new Internal\FileTask('flock', [$type, $action], $this->id), $cancellation);
-        } catch (TaskFailureException $exception) {
-            throw new StreamException("Attempting to lock the file failed", 0, $exception);
-        } catch (WorkerException $exception) {
-            throw new StreamException("Sending the task to the worker failed", 0, $exception);
-        } finally {
-            $this->busy = false;
-        }
-    }
-
-    public function read(?Cancellation $cancellation = null, int $length = self::DEFAULT_READ_LENGTH): ?string
-    {
-        if ($this->id === null) {
-            throw new ClosedException("The file has been closed");
-        }
-
-        if ($this->busy) {
-            throw new PendingOperationError;
-        }
-
-        $this->busy = true;
-
-        try {
-            $data = $this->worker->execute(new Internal\FileTask('fread', [$length], $this->id), $cancellation);
-
-            if ($data !== null) {
-                $this->position += \strlen($data);
+            if (($workerStorage[$worker] -= 1) === 0 || !$worker->isRunning()) {
+                unset($workerStorage[$worker]);
             }
-        } catch (TaskFailureException $exception) {
-            throw new StreamException("Reading from the file failed", 0, $exception);
-        } catch (WorkerException $exception) {
-            throw new StreamException("Sending the task to the worker failed", 0, $exception);
-        } finally {
-            $this->busy = false;
-        }
-
-        return $data;
-    }
-
-    public function write(string $bytes): void
-    {
-        if ($this->id === null) {
-            throw new ClosedException("The file has been closed");
-        }
-
-        if ($this->busy && $this->pendingWrites === 0) {
-            throw new PendingOperationError;
-        }
-
-        if (!$this->writable) {
-            throw new ClosedException("The file is no longer writable");
-        }
-
-        ++$this->pendingWrites;
-        $this->busy = true;
+        });
 
         try {
-            $this->worker->execute(new Internal\FileTask('fwrite', [$bytes], $this->id));
-            $this->position += \strlen($bytes);
-            $this->size = \max($this->position, $this->size);
-        } catch (TaskFailureException $exception) {
-            throw new StreamException("Writing to the file failed", 0, $exception);
+            [$id, $lastInsertId, $affectedRows, $columnCount] = $worker->execute(new Internal\SQLite3Task("query", [$query]));
+        } catch (TaskFailureThrowable $exception) {
+            throw new SQLite3QueryError("Could not open SQLite3Result", previous: $exception);
         } catch (WorkerException $exception) {
-            throw new StreamException("Sending the task to the worker failed", 0, $exception);
-        } finally {
-            if (--$this->pendingWrites === 0) {
-                $this->busy = false;
+            throw new SQLite3Exception("Could not send query request to worker", previous: $exception);
+        }
+
+        if ($columnCount) {
+            return new ParallelSQLite3Result($worker, $id, $lastInsertId, $affectedRows, $columnCount);
+        }
+        return new ParallelSQLite3CommandResult($affectedRows, $lastInsertId);
+    }
+
+    public function prepare(string $query): ParallelSQLite3Statement
+    {
+        $worker = $this->selectWorker();
+
+        $workerStorage = $this->workerStorage;
+        $worker = new Internal\SQLite3Worker($worker, static function (Worker $worker) use ($workerStorage): void {
+            if (!isset($workerStorage[$worker])) {
+                return;
             }
+
+            if (($workerStorage[$worker] -= 1) === 0 || !$worker->isRunning()) {
+                unset($workerStorage[$worker]);
+            }
+        });
+
+        try {
+            [$id] = $worker->execute(new Internal\SQLite3Task("prepare", [$query]));
+        } catch (TaskFailureThrowable $exception) {
+            throw new SQLite3QueryError("Could not open SQLite3Stmt", previous: $exception);
+        } catch (WorkerException $exception) {
+            throw new SQLite3Exception("Could not send prepare request to worker", previous: $exception);
         }
+        return new ParallelSQLite3Statement($worker, $id);
     }
 
-    public function end(): void
+    public function __destruct()
     {
-        $this->writable = false;
-        $this->close();
+        EventLoop::queue($this->close(...));
     }
-
-    public function seek(int $position, Whence $whence = Whence::Start): int
-    {
-        if ($this->id === null) {
-            throw new ClosedException("The file has been closed");
-        }
-
-        if ($this->busy) {
-            throw new PendingOperationError;
-        }
-
-        switch ($whence) {
-            case Whence::Start:
-            case Whence::Current:
-            case Whence::End:
-                try {
-                    $this->position = $this->worker->execute(
-                        new Internal\FileTask('fseek', [$position, $whence], $this->id)
-                    );
-
-                    $this->size = \max($this->position, $this->size);
-
-                    return $this->position;
-                } catch (TaskFailureException $exception) {
-                    throw new StreamException('Seeking in the file failed.', 0, $exception);
-                } catch (WorkerException $exception) {
-                    throw new StreamException("Sending the task to the worker failed", 0, $exception);
-                }
-
-            default:
-                throw new \Error('Invalid whence value. Use Start, Current, or End.');
-        }
-    }
-
 }
