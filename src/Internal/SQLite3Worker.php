@@ -1,65 +1,53 @@
 <?php declare(strict_types=1);
 
-/**
- * This file is part of Reymon.
- * Reymon is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Reymon is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See the GNU General Public License for more details.
- * If not, see <http://www.gnu.org/licenses/>.
- *
- * @author    AhJ <AmirHosseinJafari8228@gmail.com>
- * @copyright 2023-2024 AhJ <AmirHosseinJafari8228@gmail.com>
- * @license   https://choosealicense.com/licenses/gpl-3.0/ GPLv3
- */
-
 namespace Amp\SQLite3\Internal;
 
-use Amp\SQLite3\SQLite3Config;
-use Amp\SQLite3\SQLite3ConnectionException;
-use Amp\Sync\Channel;
-use Throwable;
+use Amp\Cancellation;
+use Amp\Parallel\Worker\Task;
+use Amp\Parallel\Worker\Worker;
 
-return (new class {
-
-    private SQLite3Client $client;
-
-    public function connectToSQLite3(Channel $channel): void
-    {
-        $context = $channel->receive();
-        \assert($context instanceof SQLite3Config, 'SQLite3Config not found');
-        // Connect to Sqlite3
-        try {
-            $this->client = new SQLite3Client($context);
-        } catch (Throwable $e) {
-            $channel->send(new SQLite3ConnectionException("Cannot connect to SQLite3", previous: $e));
-            $channel->send(null);
-        }
+/** @internal */
+final class SQLite3Worker
+{
+    /**
+     * @param \Closure(Worker):void $push Closure to push the worker back into the queue.
+     */
+    public function __construct(
+        private readonly Worker $worker,
+        private readonly \Closure $push
+    ) {
     }
 
-    public function getCommand(Channel $channel): SQLite3Command|Throwable
+    /**
+     * Automatically pushes the worker back into the queue.
+     */
+    public function __destruct()
     {
-        $command = $channel->receive();
-        \assert($command instanceof SQLite3Command, 'Inavlid SQLite3Command');
-        return $command;
+        ($this->push)($this->worker);
     }
 
-    public function __invoke(Channel $channel): void
+    public function isRunning(): bool
     {
-        $this->connectToSQLite3($channel);
-        // do stuff
-        while (!$channel->isClosed()) {
-            try {
-                $command = $this->getCommand($channel);
-                $respone = $command->execute($this->client);
-                if ($respone === null) {
-                    $channel->close();
-                    return;
-                }
-                $channel->send($respone);
-            } catch (Throwable $error) {
-                $exception = new SQLite3ChannelStatement($error->getMessage(), $error->getCode());
-                $channel->send($exception);
-            }
-        }
+        return $this->worker->isRunning();
     }
-})(...);
+
+    public function isIdle(): bool
+    {
+        return $this->worker->isIdle();
+    }
+
+    public function execute(Task $task, ?Cancellation $cancellation = null): mixed
+    {
+        return $this->worker->submit($task, $cancellation)->await();
+    }
+
+    public function shutdown(): void
+    {
+        $this->worker->shutdown();
+    }
+
+    public function kill(): void
+    {
+        $this->worker->kill();
+    }
+}
