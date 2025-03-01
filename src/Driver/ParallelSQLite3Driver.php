@@ -8,19 +8,20 @@ use Amp\DeferredFuture;
 use function Amp\async;
 use Amp\SQLite3\Internal;
 use Amp\SQLite3\SQLite3Config;
+use Amp\SQLite3\SQLite3Driver;
 use Amp\Parallel\Worker\Worker;
 use Amp\Sql\SqlTransientResource;
 use Amp\SQLite3\SQLite3Exception;
+use Amp\SQLite3\SQLite3QueryError;
 use Amp\Parallel\Context\StatusError;
 use Amp\Parallel\Worker\WorkerException;
 use Amp\Parallel\Worker\ContextWorkerPool;
 use Amp\Parallel\Worker\LimitedWorkerPool;
 use Amp\SQLite3\SQLite3ConnectionException;
 use Amp\Parallel\Worker\TaskFailureThrowable;
-use Amp\SQLite3\SQLite3QueryError;
 
 /** @internal */
-final class ParallelSQLite3Driver implements SqlTransientResource
+final class ParallelSQLite3Driver implements SqlTransientResource, SQLite3Driver
 {
     public const DEFAULT_WORKER_LIMIT = 8;
 
@@ -192,6 +193,11 @@ final class ParallelSQLite3Driver implements SqlTransientResource
             throw new SQLite3Exception("Could not send prepare request to worker", previous: $exception);
         }
         return new ParallelSQLite3Statement($worker, $id);
+    }
+
+    public function execute(string $query, array $params = []): \Amp\SQLite3\SQLite3Result
+    {
+        return $this->prepare($query)->execute($params);
     }
 
     public function __destruct()
